@@ -1,0 +1,8 @@
+streamlit
+chromadb
+pandas
+openpyxl
+pypdf
+google-generativeai
+python-dotenv
+pytest
