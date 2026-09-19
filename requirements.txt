@@ -3,6 +3,6 @@ chromadb
 pandas
 openpyxl
 pypdf
-google-generativeai
+google-genai
 python-dotenv
 pytest

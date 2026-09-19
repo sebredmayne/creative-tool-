@@ -40,13 +40,16 @@ class MockLLMClient(LLMClient):
 
 class GeminiClient(LLMClient):
     def __init__(self, model: str):
-        import google.generativeai as genai  # imported lazily: only required once Gemini is actually used
+        from google import genai  # imported lazily: only required once Gemini is actually used
 
-        genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-        self._model = genai.GenerativeModel(model)
+        self._client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+        self._model = model
 
     def generate(self, system_prompt: str, user_prompt: str) -> str:
-        response = self._model.generate_content(f"{system_prompt}\n\n{user_prompt}")
+        response = self._client.models.generate_content(
+            model=self._model,
+            contents=f"{system_prompt}\n\n{user_prompt}",
+        )
         return response.text
 
 
@@ -54,6 +57,6 @@ def get_llm_client() -> LLMClient:
     provider = os.getenv("LLM_PROVIDER", "gemini").lower()
 
     if provider == "gemini" and os.getenv("GEMINI_API_KEY"):
-        return GeminiClient(model=os.getenv("GEMINI_MODEL", "gemini-1.5-flash"))
+        return GeminiClient(model=os.getenv("GEMINI_MODEL", "gemini-flash-latest"))
 
     return MockLLMClient()

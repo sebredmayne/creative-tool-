@@ -58,9 +58,9 @@ Both call the same `core/reasoning/engine.py::generate_ideas()` — only the col
 Isolated entirely behind `core/reasoning/llm_client.py`. `get_llm_client()` reads `LLM_PROVIDER`, `GEMINI_API_KEY`, and `GEMINI_MODEL` from the environment:
 
 - No `GEMINI_API_KEY` set → falls back to `MockLLMClient`, which returns a fixed, validly-shaped response so the whole app runs end-to-end without any credentials.
-- `GEMINI_API_KEY` set → uses `GeminiClient` (the `google-generativeai` package is imported lazily, only when this path is actually used).
+- `GEMINI_API_KEY` set → uses `GeminiClient` (the `google-genai` package is imported lazily, only when this path is actually used).
 
-To connect a real key later: copy `.env.example` to `.env` and fill in `GEMINI_API_KEY`. Nothing else needs to change. (The Gemini call in `GeminiClient.generate()` hasn't been exercised against the live API yet — worth a quick sanity check against the current `google-generativeai` SDK once a key is added.)
+To connect a real key later: copy `.env.example` to `.env` and fill in `GEMINI_API_KEY`. Nothing else needs to change. Note: Google's older `google-generativeai` package is fully deprecated as of late 2026 — this project uses the current `google-genai` SDK instead.
 
 ## Output shape
 
