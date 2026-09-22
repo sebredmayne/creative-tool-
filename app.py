@@ -53,10 +53,15 @@ BRAND_PRESETS = {
         },
     },
     "skincare": {
-        "label": "Skincare",
+        "label": "Skincare & Personal Care",
         "brand_name": "GlowLabs",
-        "description": "Vitamin C Face Wash, Niacinamide Serum, Sunscreen SPF50",
-        "sample_files": ["reviews.csv", "sales.xlsx"],
+        "description": "Vitamin C Face Wash, Niacinamide Serum, Sunscreen, plus a wider hair/body/gummies range",
+        "sample_files": [
+            "reviews.csv",
+            "sales.xlsx",
+            "personalcare_creative_tests.csv",
+            "personalcare_narrative_angles.csv",
+        ],
         "context": {
             "brand": "GlowLabs",
             "product": "Vitamin C Face Wash / Niacinamide Serum / Sunscreen SPF50",
