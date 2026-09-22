@@ -1,6 +1,6 @@
-"""Tests for the retrieval-merge logic in the reasoning engine."""
+"""Tests for the retrieval-merge logic and output parsing in the reasoning engine."""
 from core.models import RetrievedChunk
-from core.reasoning.engine import _merge_chunks
+from core.reasoning.engine import _merge_chunks, _parse_ideas
 
 
 def _chunk(distance: float, source: str) -> RetrievedChunk:
@@ -44,3 +44,31 @@ def test_partial_connect_results_dont_error():
 
     assert len(merged) == 4
     assert sum(1 for c in merged if c.source == "connect") == 1
+
+
+_VALID_JSON = """[{"concept": "A", "rationale": "r", "recommended_format": "Reel", "source_context": "s", "script": null}]"""
+
+
+def test_parses_plain_json():
+    ideas = _parse_ideas(_VALID_JSON)
+    assert len(ideas) == 1
+    assert ideas[0].concept == "A"
+
+
+def test_parses_json_wrapped_in_markdown_code_fence():
+    fenced = f"```json\n{_VALID_JSON}\n```"
+    ideas = _parse_ideas(fenced)
+    assert len(ideas) == 1
+    assert ideas[0].concept == "A"
+
+
+def test_parses_json_wrapped_in_plain_code_fence():
+    fenced = f"```\n{_VALID_JSON}\n```"
+    ideas = _parse_ideas(fenced)
+    assert len(ideas) == 1
+
+
+def test_falls_back_gracefully_on_genuinely_invalid_output():
+    ideas = _parse_ideas("this is not json at all")
+    assert len(ideas) == 1
+    assert ideas[0].concept == "Unparsed model output"

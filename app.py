@@ -14,7 +14,7 @@ from core.ingestion import get_parser
 from core.knowledge.loader import load_explore_knowledge
 from core.models import QueryContext
 from core.reasoning.engine import generate_ideas
-from core.reasoning.llm_client import get_llm_client
+from core.reasoning.llm_client import QuotaExceededError, get_llm_client
 from core.retrieval.structured_store import StructuredStore
 from core.retrieval.vector_store import CONNECT_COLLECTION, VectorStore
 
@@ -116,6 +116,16 @@ def load_brand_preset(key: str) -> None:
                 ingest_file(f, sample_name)
     st.session_state.selected_brand = key
     st.session_state.brand_context = preset["context"]
+
+
+def show_generation_error(exc: Exception) -> None:
+    if isinstance(exc, QuotaExceededError):
+        st.error(
+            "Gemini's free-tier quota for this model is used up for now (a hard daily limit, "
+            "not a blip) - either wait for it to reset, or set a different GEMINI_MODEL in .env."
+        )
+    else:
+        st.error("The model is temporarily unavailable (this is on Google's side, not this app). Please try again in a moment.")
 
 
 def render_idea_cards(ideas) -> None:
@@ -244,8 +254,8 @@ else:
                         structured_store=structured_store,
                         llm_client=llm_client,
                     )
-            except Exception:
-                st.error("The model is temporarily unavailable (this is on Google's side, not this app). Please try again in a moment.")
+            except Exception as e:
+                show_generation_error(e)
                 ideas = []
 
             generic_ideas = []
@@ -259,8 +269,8 @@ else:
                             llm_client=llm_client,
                             include_connect_data=False,
                         )
-                except Exception:
-                    st.error("Couldn't generate the generic comparison right now.")
+                except Exception as e:
+                    show_generation_error(e)
 
             if show_comparison and has_data:
                 col_generic, col_data = st.columns(2)

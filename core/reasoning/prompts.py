@@ -22,7 +22,14 @@ _DYNAMIC_VS_FIXED_NOTE = (
     "- follow them exactly, never reinterpret or soften a compliance rule. Hook examples "
     "and performance benchmark numbers (CAC, ROAS, etc.) are illustrative, not exhaustive "
     "or guaranteed - use them as a pattern to generate new, fresh ideas from, not as a "
-    "fixed list to repeat verbatim or as facts to cite as certain."
+    "fixed list to repeat verbatim or as facts to cite as certain. When writing a hook or "
+    "a script's opening line, match the specificity and sharpness of the example hooks, "
+    "not their exact wording: name a real detail, number, or ingredient, or take a clear "
+    "stance, and know whether you're writing a tease (raises one doubt, resolved later) or "
+    "a thesis (states the whole argument up front) per the hook-writing framework in the "
+    "knowledge. Avoid generic openers - a bare demographic callout ('if you're 20-35...') "
+    "or a stock trope ('what I thought vs. reality') - unless you give it a genuinely "
+    "specific, non-generic detail that couldn't apply to any other brand in the category."
 )
 
 

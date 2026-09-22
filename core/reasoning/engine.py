@@ -63,9 +63,22 @@ def generate_ideas(
     return _parse_ideas(raw_output)
 
 
+def _strip_code_fence(text: str) -> str:
+    """Strip a ```json ... ``` (or plain ``` ... ```) fence if the model wrapped its
+    output in one, despite being told to respond with JSON only - a common LLM habit."""
+    text = text.strip()
+    if not text.startswith("```"):
+        return text
+    first_newline = text.find("\n")
+    text = text[first_newline + 1 :] if first_newline != -1 else text
+    if text.rstrip().endswith("```"):
+        text = text.rstrip()[:-3]
+    return text.strip()
+
+
 def _parse_ideas(raw_output: str) -> list[CreativeIdea]:
     try:
-        items = json.loads(raw_output)
+        items = json.loads(_strip_code_fence(raw_output))
         return [
             CreativeIdea(
                 concept=item["concept"],
