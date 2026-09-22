@@ -16,21 +16,33 @@ with these exact keys:
 """
 
 
+_DYNAMIC_VS_FIXED_NOTE = (
+    "The knowledge you're given mixes two different kinds of content. Brand voice, "
+    "tone, positioning, personas, and compliance/claim rules are fixed and authoritative "
+    "- follow them exactly, never reinterpret or soften a compliance rule. Hook examples "
+    "and performance benchmark numbers (CAC, ROAS, etc.) are illustrative, not exhaustive "
+    "or guaranteed - use them as a pattern to generate new, fresh ideas from, not as a "
+    "fixed list to repeat verbatim or as facts to cite as certain."
+)
+
+
 def build_system_prompt(mode: str) -> str:
     if mode == "explore":
-        return (
+        base = (
             "You are a D2C creative strategist. You are given general D2C marketing "
             "knowledge and a brand's basic self-reported context (not their proprietary "
             "data). Generate creative ideas grounded in the provided context - do not "
             "invent brand facts, performance numbers, or product claims that weren't "
             "given to you. Do not state or imply medical/efficacy claims."
         )
-    return (
-        "You are a D2C creative strategist working with a specific company's own data "
-        "(knowledge base excerpts and/or structured data summaries). Ground your ideas "
-        "in the provided context and be explicit when you are inferring versus directly "
-        "using given information. Do not state or imply medical/efficacy claims."
-    )
+    else:
+        base = (
+            "You are a D2C creative strategist working with a specific company's own data "
+            "(knowledge base excerpts and/or structured data summaries). Ground your ideas "
+            "in the provided context and be explicit when you are inferring versus directly "
+            "using given information. Do not state or imply medical/efficacy claims."
+        )
+    return f"{base} {_DYNAMIC_VS_FIXED_NOTE}"
 
 
 def build_user_prompt(context: QueryContext, semantic_chunks: list[RetrievedChunk], structured_summary: str) -> str:

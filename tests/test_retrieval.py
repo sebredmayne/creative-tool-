@@ -32,6 +32,19 @@ def test_query_on_empty_collection_returns_nothing(vector_store):
     assert vector_store.query("empty_collection", "anything", top_k=3) == []
 
 
+def test_query_drops_irrelevant_results_below_relevance_floor(vector_store):
+    vector_store.add_documents(
+        "test_collection",
+        ids=["1"],
+        texts=["Founder story videos build trust for new skincare brands."],
+        metadatas=[{"source": "a.md"}],
+    )
+
+    results = vector_store.query("test_collection", "what is the boiling point of water in celsius", top_k=5)
+
+    assert results == []
+
+
 def test_clear_removes_collection_contents(vector_store):
     vector_store.add_documents("test_collection", ids=["1"], texts=["some text"], metadatas=[{"source": "a"}])
     vector_store.clear("test_collection")

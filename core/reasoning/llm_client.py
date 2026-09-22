@@ -9,6 +9,7 @@ To connect Gemini later: set GEMINI_API_KEY (and optionally GEMINI_MODEL) in
 .env. Nothing else in the app needs to change.
 """
 import os
+import time
 from abc import ABC, abstractmethod
 
 
@@ -46,11 +47,21 @@ class GeminiClient(LLMClient):
         self._model = model
 
     def generate(self, system_prompt: str, user_prompt: str) -> str:
-        response = self._client.models.generate_content(
-            model=self._model,
-            contents=f"{system_prompt}\n\n{user_prompt}",
-        )
-        return response.text
+        from google.genai import errors
+
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                response = self._client.models.generate_content(
+                    model=self._model,
+                    contents=f"{system_prompt}\n\n{user_prompt}",
+                )
+                return response.text
+            except errors.ServerError:
+                # Transient overload (e.g. 503) - Google's side, not ours. Back off and retry.
+                if attempt == max_attempts - 1:
+                    raise
+                time.sleep(2**attempt)  # 1s, then 2s
 
 
 def get_llm_client() -> LLMClient:

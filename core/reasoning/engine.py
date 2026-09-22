@@ -1,9 +1,10 @@
 """Orchestrates one creative-generation request: route -> retrieve -> prompt -> generate -> parse.
 
-Explore and Connect both go through this same function. The only
-differences are which vector collection is queried and what context
-(user-provided fields vs. uploaded company data) is available - callers are
-responsible for keeping those separate (see app.py).
+Always draws on the curated Explore knowledge base, and additionally on
+whatever's been loaded into Connect (if anything). The two are merged
+rather than mutually exclusive - a question about one category shouldn't
+lose its curated knowledge just because unrelated data from a different
+category happens to be loaded.
 """
 import json
 
@@ -12,22 +13,30 @@ from core.reasoning.llm_client import LLMClient
 from core.reasoning.prompts import build_system_prompt, build_user_prompt
 from core.reasoning.router import decide_route
 from core.retrieval.structured_store import StructuredStore
-from core.retrieval.vector_store import VectorStore
+from core.retrieval.vector_store import CONNECT_COLLECTION, EXPLORE_COLLECTION, VectorStore
 
 
 def generate_ideas(
     context: QueryContext,
-    collection_name: str,
     vector_store: VectorStore,
     structured_store: StructuredStore,
     llm_client: LLMClient,
     top_k: int = 5,
+    include_connect_data: bool = True,
 ) -> list[CreativeIdea]:
+    """`include_connect_data=False` forces an Explore-only (generic) answer - used by the
+    UI's opt-in "generic comparison" so it genuinely excludes loaded data, not just structured data.
+    """
     route = decide_route(context.query, structured_data_available=structured_store.has_data())
 
-    semantic_chunks = (
-        vector_store.query(collection_name, context.query, top_k=top_k) if route.use_semantic else []
-    )
+    semantic_chunks = []
+    if route.use_semantic:
+        explore_chunks = vector_store.query(EXPLORE_COLLECTION, context.query, top_k=top_k)
+        connect_chunks = (
+            vector_store.query(CONNECT_COLLECTION, context.query, top_k=top_k) if include_connect_data else []
+        )
+        semantic_chunks = sorted(explore_chunks + connect_chunks, key=lambda chunk: chunk.distance)[:top_k]
+
     structured_summary = structured_store.summarize_all() if route.use_structured else ""
 
     system_prompt = build_system_prompt(context.mode)
