@@ -40,9 +40,14 @@ def generate_ideas(
     llm_client: LLMClient,
     top_k: int = 5,
     include_connect_data: bool = True,
+    connect_collection_name: str = CONNECT_COLLECTION,
 ) -> list[CreativeIdea]:
     """`include_connect_data=False` forces an Explore-only (generic) answer - used by the
     UI's opt-in "generic comparison" so it genuinely excludes loaded data, not just structured data.
+
+    `connect_collection_name` defaults to the single shared Connect collection (Streamlit's
+    usage), but callers that isolate data per session/user (e.g. the API backend) pass their
+    own collection name instead.
     """
     route = decide_route(context.query, structured_data_available=structured_store.has_data())
 
@@ -50,7 +55,7 @@ def generate_ideas(
     if route.use_semantic:
         explore_chunks = vector_store.query(EXPLORE_COLLECTION, context.query, top_k=top_k)
         connect_chunks = (
-            vector_store.query(CONNECT_COLLECTION, context.query, top_k=top_k) if include_connect_data else []
+            vector_store.query(connect_collection_name, context.query, top_k=top_k) if include_connect_data else []
         )
         semantic_chunks = _merge_chunks(explore_chunks, connect_chunks, top_k)
 
@@ -86,6 +91,9 @@ def _parse_ideas(raw_output: str) -> list[CreativeIdea]:
                 recommended_format=item["recommended_format"],
                 source_context=item["source_context"],
                 script=item.get("script"),
+                grounding=item.get("grounding", "inference"),
+                needs_review=item.get("needs_review", False),
+                review_reason=item.get("review_reason"),
             )
             for item in items
         ]

@@ -48,3 +48,7 @@ class VectorStore:
 
     def clear(self, collection_name: str) -> None:
         self._client.delete_collection(collection_name)
+
+    def delete_by_source(self, collection_name: str, source: str) -> None:
+        """Remove just the chunks that came from one file, identified by its `source` metadata."""
+        self._collection(collection_name).delete(where={"source": source})

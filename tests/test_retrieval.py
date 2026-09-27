@@ -51,6 +51,19 @@ def test_clear_removes_collection_contents(vector_store):
     assert vector_store.count("test_collection") == 0
 
 
+def test_delete_by_source_only_removes_that_files_chunks(vector_store):
+    vector_store.add_documents(
+        "test_collection",
+        ids=["1", "2"],
+        texts=["chunk from file a", "chunk from file b"],
+        metadatas=[{"source": "a.csv"}, {"source": "b.csv"}],
+    )
+
+    vector_store.delete_by_source("test_collection", "a.csv")
+
+    assert vector_store.count("test_collection") == 1
+
+
 def test_structured_store_summarizes_uploaded_tables():
     store = StructuredStore()
     assert store.has_data() is False

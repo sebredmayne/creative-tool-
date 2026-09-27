@@ -19,6 +19,25 @@ def _quota_error():
     return errors.ClientError(429, {"error": {"message": "quota exceeded"}})
 
 
+def _server_error():
+    from google.genai import errors
+
+    return errors.ServerError(503, {"error": {"message": "model overloaded"}})
+
+
+def test_falls_back_to_second_model_when_primary_overloaded(client):
+    """A 503 means the SDK's own retries against the primary model already failed - the
+    fallback model should be tried next rather than surfacing an error immediately."""
+    fallback_response = MagicMock(text="fallback output")
+
+    with patch.object(client._client.models, "generate_content") as mock_generate:
+        mock_generate.side_effect = [_server_error(), fallback_response]
+        result = client.generate("system", "user")
+
+    assert result == "fallback output"
+    assert mock_generate.call_args_list[1].kwargs["model"] == "fallback-model"
+
+
 def test_falls_back_to_second_model_when_primary_quota_exhausted(client):
     primary_response = MagicMock()
     fallback_response = MagicMock(text="fallback output")

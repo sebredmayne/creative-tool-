@@ -13,6 +13,17 @@ with these exact keys:
 - "recommended_format": e.g. "Instagram Reel", "UGC video", "carousel", "static ad"
 - "source_context": brief note on which knowledge or data this idea drew from
 - "script": an optional short script or brief (string), or null if not applicable
+- "grounding": "brand_data" if this idea is substantively grounded in the user's own
+  loaded/uploaded data (chunks tagged with a source that isn't one of the general
+  knowledge files), or "inference" if it mainly draws on general category knowledge
+- "needs_review": true if the copy touches health, medical, efficacy, or other
+  regulated-claim language that should get compliance/regulatory sign-off before use,
+  false otherwise
+- "review_reason": if needs_review is true, one sentence saying why; otherwise null
+
+For video formats (Reels, UGC videos, etc.), default to writing roughly 30
+seconds of content with clearly timestamped beats (hook, body, CTA) - unless
+the user's request specifies a different duration, in which case follow that.
 """
 
 
