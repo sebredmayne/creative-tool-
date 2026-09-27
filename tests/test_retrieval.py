@@ -51,6 +51,48 @@ def test_clear_removes_collection_contents(vector_store):
     assert vector_store.count("test_collection") == 0
 
 
+def test_clear_on_a_never_created_collection_is_a_no_op(vector_store):
+    vector_store.clear("never_created_collection")  # must not raise
+
+
+def test_query_with_where_filter_only_matches_filtered_metadata(vector_store):
+    # Identical text so both would tie for relevance without the filter - the assertion below
+    # only holds if `where` is actually excluding the other brand, not just influencing ranking.
+    vector_store.add_documents(
+        "test_collection",
+        ids=["1", "2"],
+        texts=["Founder story videos build trust.", "Founder story videos build trust."],
+        metadatas=[{"source": "a.md", "brand": "skincare"}, {"source": "b.md", "brand": "flexwear"}],
+    )
+
+    results = vector_store.query(
+        "test_collection", "founder story videos", top_k=5, where={"brand": {"$in": ["skincare"]}}
+    )
+
+    assert len(results) == 1
+    assert results[0].source == "a.md"
+
+
+def test_list_collection_names_returns_every_collection(vector_store):
+    vector_store.add_documents("collection_a", ids=["1"], texts=["x"], metadatas=[{"source": "a"}])
+    vector_store.add_documents("collection_b", ids=["1"], texts=["x"], metadatas=[{"source": "a"}])
+
+    assert set(vector_store.list_collection_names()) == {"collection_a", "collection_b"}
+
+
+def test_delete_collections_with_prefix_only_removes_matching_collections(vector_store):
+    vector_store.add_documents("connect_abc", ids=["1"], texts=["x"], metadatas=[{"source": "a"}])
+    vector_store.add_documents("connect_def", ids=["1"], texts=["x"], metadatas=[{"source": "a"}])
+    vector_store.add_documents("explore_knowledge", ids=["1"], texts=["x"], metadatas=[{"source": "a"}])
+
+    vector_store.delete_collections_with_prefix("connect_")
+
+    names = vector_store.list_collection_names()
+    assert "connect_abc" not in names
+    assert "connect_def" not in names
+    assert "explore_knowledge" in names
+
+
 def test_delete_by_source_only_removes_that_files_chunks(vector_store):
     vector_store.add_documents(
         "test_collection",

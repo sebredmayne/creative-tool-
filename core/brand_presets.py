@@ -2,8 +2,7 @@
 
 Picking one auto-loads that brand's own sample data + pre-fills its context -
 so users always know what's actually well-supported, rather than typing
-anything and guessing. Shared by the Streamlit app and the API backend so
-there's one source of truth instead of duplicated brand definitions.
+anything and guessing.
 """
 
 BRAND_PRESETS = {
@@ -34,8 +33,8 @@ BRAND_PRESETS = {
         "brand_name": "GlowLabs",
         "description": "Vitamin C Face Wash, Niacinamide Serum, Sunscreen, plus a wider hair/body/gummies range",
         "sample_files": [
-            "reviews.csv",
-            "sales.xlsx",
+            "skincare_reviews.csv",
+            "skincare_sales.xlsx",
             "personalcare_creative_tests.csv",
             "personalcare_narrative_angles.csv",
         ],

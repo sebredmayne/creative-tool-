@@ -1,6 +1,6 @@
-# Sample Brand Deep-Dive: FlexWear - Brand Voice & Compliance Gate
+# Sample Brand Deep-Dive: FlexWear - Brand Voice & Positioning
 
-A worked example of a fitness-apparel D2C brand, at the same depth as the SproutMix example - illustrative/fictional, representative of real activewear brands. Deliberately different compliance risks than a health/nutrition brand: fitness apparel's real exposure is body-image and greenwashing claims, not medical/outcome claims.
+A worked example of a fitness-apparel D2C brand, at the same depth as the SproutMix example - illustrative/fictional, representative of real activewear brands. This brand's compliance/claim rules live in `flexwear_compliance.md` instead of here - they're loaded deterministically into every request for this brand, not retrieved like this file.
 
 ## Brand foundation & voice
 
@@ -22,19 +22,3 @@ Three lines, differentiated by use case rather than age band:
 | Approved distinct claim | "All-day comfort, gym to errands" | "Tested for squat-proof opacity" (only where actual fabric-opacity testing has been done) | "Designed for recovery, not just rest" |
 
 Sizing runs XS-4XL across all three lines - inclusive sizing is a core differentiator, not an add-on line.
-
-## The compliance gate - non-negotiable
-
-Every piece of creative - script, static, PDP copy, influencer brief - must clear this checklist. The risk profile here is different from a health/nutrition brand: the real exposure is body-image harm and unsubstantiated fabric/sustainability claims, not medical outcome claims.
-
-| Flag | Fails if | Fix |
-|---|---|---|
-| A1 | Any implied body-transformation claim ("slim your waist," "look years younger," "tone your legs") | Remove entirely - reframe to comfort, confidence, or fit, never a body-shape outcome |
-| A2 | A therapeutic/medical claim ("reduces cellulite," "improves circulation," "boosts metabolism") without real clinical substantiation | Default to a hard no - these require actual testing the brand doesn't have |
-| A3 | A fabric performance claim (moisture-wicking %, compression level, "squat-proof") not backed by actual lab/wear-test data | Only claim what's been tested; otherwise use softer, unquantified language ("designed to wick sweat") |
-| A4 | A "before" body shown as inadequate, or any competitor-body comparison | Remove - both an ethical issue and a platform ad-policy violation (Meta, Google) |
-| A5 | A sustainability/material claim ("100% recycled," "eco-friendly," "carbon neutral") without a real certification to back it | Remove or replace with the specific verifiable fact ("made with recycled polyester from X supplier") - unsubstantiated green claims are an active ASCI/greenwashing enforcement area |
-| A6 | A sizing claim ("true to size") not actually backed by return-rate/fit data | Verify against real size-chart and return data before using in copy |
-| A7 | Diet-culture or intensity-shaming language ("no excuses," "earn your body") | Remove - conflicts with brand voice and risks alienating the primary comfort-first buyer |
-
-Response protocol: every submission gets a verdict - **Proceed**, **Soft warning** (flag a specific claim for the brand team to verify - especially fabric-tech or sustainability claims), or **Hard stop**. Fabric and sustainability claims should default to Soft warning unless the underlying test/certification is explicitly confirmed - don't assume it exists just because it sounds plausible.

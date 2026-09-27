@@ -4,5 +4,7 @@ pandas
 openpyxl
 pypdf
 google-genai
+httpx
 python-dotenv
+pyyaml
 pytest

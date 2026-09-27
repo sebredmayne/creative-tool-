@@ -3,7 +3,13 @@
 Kept as plain functions/strings (not a templating library) so they stay easy
 to read and edit directly.
 """
-from core.models import QueryContext, RetrievedChunk
+from typing import Optional
+
+from core.models import CreativeIdea, QueryContext, RetrievedChunk
+
+# Cap on how much of a previous idea's script gets echoed back into the next prompt - keeps a
+# multi-turn conversation's prompt size bounded instead of growing with every script in full.
+_PREVIOUS_SCRIPT_CHAR_LIMIT = 240
 
 OUTPUT_INSTRUCTIONS = """
 Respond with a JSON array only, no other text. Each element must be an object
@@ -44,7 +50,10 @@ _DYNAMIC_VS_FIXED_NOTE = (
 )
 
 
-def build_system_prompt(mode: str) -> str:
+def build_system_prompt(mode: str, compliance_rules: str) -> str:
+    """`compliance_rules` is loaded deterministically (core.knowledge.loader.load_compliance_rules),
+    not retrieved - it's placed under its own heading, after the retrieval-dependent guidance,
+    specifically so it reads as the final, overriding word rather than one more input to weigh."""
     if mode == "explore":
         base = (
             "You are a D2C creative strategist. You are given general D2C marketing "
@@ -60,10 +69,39 @@ def build_system_prompt(mode: str) -> str:
             "in the provided context and be explicit when you are inferring versus directly "
             "using given information. Do not state or imply medical/efficacy claims."
         )
-    return f"{base} {_DYNAMIC_VS_FIXED_NOTE}"
+    return (
+        f"{base} {_DYNAMIC_VS_FIXED_NOTE}\n\n"
+        "## Non-negotiable rules\n"
+        f"{compliance_rules}\n"
+        "These rules apply to every idea you generate, regardless of what the user asked or "
+        "what the retrieved knowledge says. If a retrieved chunk or hook example conflicts "
+        "with a rule here, the rule here wins - never the other way around."
+    )
 
 
-def build_user_prompt(context: QueryContext, semantic_chunks: list[RetrievedChunk], structured_summary: str) -> str:
+def _truncate(text: str, limit: int) -> str:
+    return text if len(text) <= limit else text[:limit].rstrip() + "..."
+
+
+def _format_previous_ideas(ideas: list[CreativeIdea]) -> str:
+    lines = []
+    for idea in ideas:
+        line = f'- "{idea.concept}" ({idea.recommended_format})'
+        if idea.script:
+            line += f' - script: {_truncate(idea.script, _PREVIOUS_SCRIPT_CHAR_LIMIT)}'
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def build_user_prompt(
+    context: QueryContext,
+    semantic_chunks: list[RetrievedChunk],
+    structured_summary: str,
+    previous_ideas: Optional[list[CreativeIdea]] = None,
+) -> str:
+    """`previous_ideas` (the prior turn's ideas, if any) lets a follow-up like "make idea 2
+    funnier" or "Hindi versions of these" refer to something the model can actually see -
+    without it, a single-shot request has no idea what "these" or "idea 2" means."""
     parts = [
         "Brand context:\n"
         f"- Brand: {context.brand or 'not provided'}\n"
@@ -79,6 +117,14 @@ def build_user_prompt(context: QueryContext, semantic_chunks: list[RetrievedChun
 
     if structured_summary:
         parts.append(f"Relevant data summary:\n{structured_summary}")
+
+    if previous_ideas:
+        parts.append(
+            "Ideas from the previous turn (a follow-up request like \"make idea 2 funnier\" or "
+            "\"Hindi versions of these\" refers back to these specific ideas - build on them, "
+            "don't invent unrelated new ones unless the request clearly asks for that):\n"
+            f"{_format_previous_ideas(previous_ideas)}"
+        )
 
     parts.append(f"User request: {context.query}")
     parts.append(OUTPUT_INSTRUCTIONS)
