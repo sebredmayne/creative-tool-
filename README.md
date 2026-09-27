@@ -55,10 +55,10 @@ Both call the same `core/reasoning/engine.py::generate_ideas()` — only the col
 
 ## LLM provider
 
-Isolated entirely behind `core/reasoning/llm_client.py`. `get_llm_client()` reads `LLM_PROVIDER`, `GEMINI_API_KEY`, and `GEMINI_MODEL` from the environment:
+Isolated entirely behind `core/reasoning/llm_client.py`. `get_llm_client()` reads `LLM_PROVIDER`, `GEMINI_API_KEY`, `GEMINI_MODEL`, and `GEMINI_FALLBACK_MODEL` from the environment:
 
 - No `GEMINI_API_KEY` set → falls back to `MockLLMClient`, which returns a fixed, validly-shaped response so the whole app runs end-to-end without any credentials.
-- `GEMINI_API_KEY` set → uses `GeminiClient` (the `google-genai` package is imported lazily, only when this path is actually used).
+- `GEMINI_API_KEY` set → uses `GeminiClient` (the `google-genai` package is imported lazily, only when this path is actually used). Free-tier Gemini models each have their own separate daily quota, which is easy to exhaust while testing - if `GEMINI_MODEL`'s quota is exhausted (a `429`), `GeminiClient` automatically retries the same request against `GEMINI_FALLBACK_MODEL` (a smaller/lighter model with its own separate quota) instead of failing outright. A transient server overload (`503`) is retried against the same model with backoff instead, since that's Google's side being temporarily busy, not a quota issue.
 
 To connect a real key later: copy `.env.example` to `.env` and fill in `GEMINI_API_KEY`. Nothing else needs to change. Note: Google's older `google-generativeai` package is fully deprecated as of late 2026 — this project uses the current `google-genai` SDK instead.
 

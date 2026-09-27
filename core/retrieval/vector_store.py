@@ -26,7 +26,13 @@ class VectorStore:
             return
         self._collection(collection_name).add(ids=ids, documents=texts, metadatas=metadatas)
 
-    def query(self, collection_name: str, query_text: str, top_k: int = 5) -> list[RetrievedChunk]:
+    def query(self, collection_name: str, query_text: str, top_k: int = 5, max_distance: float = 1.5) -> list[RetrievedChunk]:
+        """Return the closest chunks to `query_text`, dropping any that aren't actually relevant.
+
+        `max_distance` is a relevance floor, not a tuning knob to raise casually: calibrated
+        empirically (see tests/test_retrieval.py) against this project's embedding model -
+        genuinely on-topic queries land ~0.9-1.3, unrelated ones land ~1.7+.
+        """
         collection = self._collection(collection_name)
         if collection.count() == 0:
             return []
@@ -37,7 +43,12 @@ class VectorStore:
             for text, metadata, distance in zip(
                 results["documents"][0], results["metadatas"][0], results["distances"][0]
             )
+            if distance <= max_distance
         ]
 
     def clear(self, collection_name: str) -> None:
         self._client.delete_collection(collection_name)
+
+    def delete_by_source(self, collection_name: str, source: str) -> None:
+        """Remove just the chunks that came from one file, identified by its `source` metadata."""
+        self._collection(collection_name).delete(where={"source": source})

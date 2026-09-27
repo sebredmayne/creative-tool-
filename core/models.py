@@ -46,3 +46,7 @@ class CreativeIdea:
     recommended_format: str
     source_context: str
     script: Optional[str] = None
+    # Self-reported by the model, not inferred after the fact from prose:
+    grounding: str = "inference"  # "brand_data" or "inference"
+    needs_review: bool = False
+    review_reason: Optional[str] = None

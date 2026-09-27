@@ -32,10 +32,36 @@ def test_query_on_empty_collection_returns_nothing(vector_store):
     assert vector_store.query("empty_collection", "anything", top_k=3) == []
 
 
+def test_query_drops_irrelevant_results_below_relevance_floor(vector_store):
+    vector_store.add_documents(
+        "test_collection",
+        ids=["1"],
+        texts=["Founder story videos build trust for new skincare brands."],
+        metadatas=[{"source": "a.md"}],
+    )
+
+    results = vector_store.query("test_collection", "what is the boiling point of water in celsius", top_k=5)
+
+    assert results == []
+
+
 def test_clear_removes_collection_contents(vector_store):
     vector_store.add_documents("test_collection", ids=["1"], texts=["some text"], metadatas=[{"source": "a"}])
     vector_store.clear("test_collection")
     assert vector_store.count("test_collection") == 0
+
+
+def test_delete_by_source_only_removes_that_files_chunks(vector_store):
+    vector_store.add_documents(
+        "test_collection",
+        ids=["1", "2"],
+        texts=["chunk from file a", "chunk from file b"],
+        metadatas=[{"source": "a.csv"}, {"source": "b.csv"}],
+    )
+
+    vector_store.delete_by_source("test_collection", "a.csv")
+
+    assert vector_store.count("test_collection") == 1
 
 
 def test_structured_store_summarizes_uploaded_tables():
