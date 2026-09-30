@@ -18,6 +18,13 @@ timeline - reject the angle, however well it might perform. This catches approve
 phrasing too: "supports healthy development" still implies an observable growth outcome, and
 fails the same way. Protein is the approved substitute for growth intent.
 
+This applies to what you write about the idea, not just the ad copy itself: when your own
+rationale or concept name explains that you avoided an outcome claim, do not name the specific
+outcome word to say so (e.g. never write "avoids growth outcomes" or title something "...
+Focus" or "... Growth") - describe the avoidance neutrally instead ("avoids implying a
+physical or cognitive outcome"). A rationale that repeats the exact word it claims to avoid
+isn't actually compliant, it's just laundering the same claim through a different field.
+
 Then check against the flags:
 
 | Flag | Fails if | Fix |

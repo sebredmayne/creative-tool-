@@ -27,6 +27,16 @@ with these exact keys:
   false otherwise
 - "review_reason": if needs_review is true, one sentence saying why; otherwise null
 
+Every field you output is treated as part of the deliverable, not just the visible ad copy in
+"script" - a compliance scan (automated or human) may check "rationale", "concept", and
+"source_context" too, not just what a customer would see. So avoid language that implies a
+physical, cognitive, behavioral, mood, or health outcome (e.g. "growth", "grow", "focus",
+"mood", "behavior"/"behaviour", "immunity", "brain") anywhere in your response, including when
+explaining what you deliberately avoided - describe that avoidance in neutral terms instead
+("avoids implying a physical outcome", not "avoids growth outcomes"), and never use an
+outcome-adjacent word as a concept nickname or theme label (e.g. don't title an idea "...
+Protein Focus" - name it after the angle or hook instead, not the outcome word).
+
 For video formats (Reels, UGC videos, etc.), default to writing roughly 30
 seconds of content with clearly timestamped beats (hook, body, CTA) - unless
 the user's request specifies a different duration, in which case follow that.

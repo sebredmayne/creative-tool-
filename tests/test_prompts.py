@@ -1,7 +1,8 @@
 """Tests for build_user_prompt's previous_ideas section - the fix for follow-ups like "Hindi
 versions of these" reaching the model with no idea what "these" refers to."""
+from core.knowledge.loader import load_compliance_rules
 from core.models import CreativeIdea, QueryContext
-from core.reasoning.prompts import build_user_prompt
+from core.reasoning.prompts import OUTPUT_INSTRUCTIONS, build_user_prompt
 
 _CONTEXT = QueryContext(mode="explore", query="give me a reel script")
 
@@ -43,3 +44,21 @@ def test_previous_idea_script_is_truncated_not_dropped_when_long():
 
     assert long_script not in prompt  # full script would bloat every subsequent prompt
     assert "x" * 50 in prompt  # but a meaningful prefix is still there, not dropped entirely
+
+
+# --- regression guard: every output field must stay clean of implied-outcome language, not --
+# --- just "script" - found via evals/run.py's forbidden_implied_claims case flagging the ----
+# --- model's own *rationale* ("...instead of growth outcomes") and *concept* ("...Protein ---
+# --- Focus"), never the visible ad copy. Fixed at the prompt level (OUTPUT_INSTRUCTIONS + ---
+# --- sproutmix_compliance.md), deliberately not by narrowing what evals/run.py checks. ------
+
+
+def test_output_instructions_warn_against_implied_claims_in_every_field():
+    lowered = OUTPUT_INSTRUCTIONS.lower()
+    assert "concept" in lowered and "rationale" in lowered  # names the non-script fields
+    assert "growth" in lowered and "focus" in lowered  # names concrete trigger words, not vaguely
+
+
+def test_sproutmix_compliance_warns_against_echoing_avoided_words_back():
+    rules = load_compliance_rules("sproutmix")
+    assert "avoids growth outcomes" in rules.lower()  # the exact anti-pattern this guards against
