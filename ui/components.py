@@ -5,7 +5,69 @@ import html
 
 import streamlit as st
 
+from core.reasoning.edit_brief import edit_brief_to_json, edit_brief_to_markdown, slugify_for_filename
 from core.session import CopilotSession
+
+# Free-text idea.recommended_format values that mean "this is a video, not a static/carousel
+# ad" - "Export edit brief" only makes sense for those. Keyword match, not exhaustive: matches
+# the same free-text-format convention the model already uses (see OUTPUT_INSTRUCTIONS).
+_VIDEO_FORMAT_KEYWORDS = ("reel", "video", "ugc", "tiktok", "short")
+
+
+def _is_video_format(format_text: str) -> bool:
+    lowered = format_text.lower()
+    return any(keyword in lowered for keyword in _VIDEO_FORMAT_KEYWORDS)
+
+
+def _render_edit_brief(brief, key_prefix: str) -> None:
+    st.markdown("###### Edit brief")
+    st.caption(f"{brief.aspect_ratio} · {brief.duration_seconds}s · {brief.format}")
+
+    if brief.compliance_notes:
+        st.markdown(f'<div class="compliance-warning">⚠️ {html.escape(brief.compliance_notes)}</div>', unsafe_allow_html=True)
+
+    if brief.alternative_hooks:
+        with st.expander("Alternative hooks"):
+            for hook in brief.alternative_hooks:
+                st.markdown(f"- {hook}")
+
+    st.dataframe(
+        [
+            {
+                "Time": scene.timestamp_range,
+                "Beat": scene.beat_type,
+                "VO / on-screen text": scene.voiceover_or_onscreen_text,
+                "Visual": scene.visual_description,
+                "B-roll": "; ".join(scene.b_roll_suggestions),
+                "Footage note": scene.footage_note or "",
+            }
+            for scene in brief.scenes
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
+    st.caption(f"Music/mood: {brief.music_mood_note}" if brief.music_mood_note else "")
+
+    filename_stub = slugify_for_filename(brief.concept)
+    col_json, col_md = st.columns(2)
+    with col_json:
+        st.download_button(
+            "Download JSON",
+            data=edit_brief_to_json(brief),
+            file_name=f"{filename_stub}_edit_brief.json",
+            mime="application/json",
+            key=f"download_json_{key_prefix}",
+            use_container_width=True,
+        )
+    with col_md:
+        st.download_button(
+            "Download Markdown",
+            data=edit_brief_to_markdown(brief),
+            file_name=f"{filename_stub}_edit_brief.md",
+            mime="text/markdown",
+            key=f"download_md_{key_prefix}",
+            use_container_width=True,
+        )
 
 
 def _describe_idea_fully(idea) -> str:
@@ -45,7 +107,12 @@ def render_idea_card(idea, key_prefix: str, session: CopilotSession):
         # anyway, which is why the old copy button never actually worked).
         st.code(idea.script or idea.rationale, language=None, wrap_lines=True)
 
-        col_refine, col_save = st.columns(2)
+        if _is_video_format(idea.recommended_format):
+            col_refine, col_save, col_brief = st.columns(3)
+        else:
+            col_refine, col_save = st.columns(2)
+            col_brief = None
+
         with col_refine:
             if st.button("Refine", key=f"refine_{key_prefix}", use_container_width=True):
                 follow_up = f"Give me a different take on this idea:\n{_describe_idea_fully(idea)}"
@@ -53,6 +120,18 @@ def render_idea_card(idea, key_prefix: str, session: CopilotSession):
             if st.button("Save", key=f"save_{key_prefix}", use_container_width=True):
                 session.save_idea(idea)
                 st.toast(f"Saved: {idea.concept}")
+        if col_brief is not None:
+            with col_brief:
+                if st.button("Export edit brief", key=f"brief_btn_{key_prefix}", use_container_width=True):
+                    with st.spinner("Generating edit brief..."):
+                        result = session.generate_edit_brief(idea)
+                    if result.error:
+                        st.error(result.error)
+                    else:
+                        st.session_state[f"edit_brief_{key_prefix}"] = result.brief
+
+        if col_brief is not None and st.session_state.get(f"edit_brief_{key_prefix}"):
+            _render_edit_brief(st.session_state[f"edit_brief_{key_prefix}"], key_prefix)
 
     return follow_up
 

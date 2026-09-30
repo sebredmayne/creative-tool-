@@ -3,12 +3,15 @@ GlowLabs data. Covers the three mechanisms that caused it - a shared Explore col
 no brand scoping, brand-switch not clearing Connect data, and Connect data being shared across
 sessions instead of per-session - using the real knowledge base and real engine entry point,
 not mocks, so the fix is verified the way the bug was actually observed."""
+import pytest
+
+from core import custom_brands
 from core.knowledge.loader import load_explore_knowledge
-from core.models import QueryContext
+from core.models import BrandProfile, QueryContext
 from core.reasoning.engine import generate_ideas
 from core.reasoning.llm_client import MockLLMClient
 from core.retrieval.structured_store import StructuredStore
-from core.retrieval.vector_store import VectorStore
+from core.retrieval.vector_store import EXPLORE_COLLECTION, VectorStore
 
 
 class _RecordingLLMClient(MockLLMClient):
@@ -19,7 +22,7 @@ class _RecordingLLMClient(MockLLMClient):
     def __init__(self):
         self.last_user_prompt = None
 
-    def generate(self, system_prompt, user_prompt):
+    def generate(self, system_prompt, user_prompt, response_schema=None):
         self.last_user_prompt = user_prompt
         return super().generate(system_prompt, user_prompt)
 
@@ -115,3 +118,67 @@ def test_two_sessions_never_see_each_others_uploads(tmp_path):
 
     assert all(r.source == "session_a_upload.csv" for r in results_for_a)
     assert all(r.source == "session_b_upload.csv" for r in results_for_b)
+
+
+@pytest.fixture
+def temp_brands_dir(tmp_path, monkeypatch):
+    monkeypatch.setattr(custom_brands, "BRANDS_DIR", tmp_path / "brands")
+
+
+def _save_custom_brand(slug: str, guide_text: str) -> None:
+    profile = BrandProfile(
+        slug=slug,
+        label=slug,
+        brand_name=slug,
+        description="",
+        context={"brand": slug, "product": "", "customer": "", "category": "", "objective": ""},
+        compliance_rules=f"Never make unverified claims for {slug}.",
+        guide_filename="guide.md",
+        is_custom=True,
+    )
+    custom_brands.save_custom_brand(profile, guide_text=guide_text, guide_filename="guide.md", guide_bytes=b"", data_files=[])
+
+
+def test_custom_brands_explore_chunks_never_cross_contaminate(temp_brands_dir, tmp_path):
+    """Two custom brands, each with distinctive guide content - neither's chunks should ever
+    be retrievable when scoped to the other, or to a preset."""
+    _save_custom_brand("joes-coffee", "Joe's Coffee Co. sources single-origin arabica beans from Ethiopia and Colombia.")
+    _save_custom_brand("mias-candles", "Mia's Candles hand-pours soy wax candles scented with lavender and cedarwood.")
+
+    vector_store = VectorStore(persist_dir=str(tmp_path / "chroma"))
+    load_explore_knowledge(vector_store)
+
+    coffee_chunks = vector_store.query(
+        EXPLORE_COLLECTION, "arabica beans Ethiopia Colombia", top_k=10, max_distance=999,
+        where={"brand": {"$in": ["joes-coffee", "general"]}},
+    )
+    assert coffee_chunks  # sanity: it was actually indexed
+    assert all(c.source != "mias-candles_brand_guide" for c in coffee_chunks)
+
+    candle_chunks = vector_store.query(
+        EXPLORE_COLLECTION, "soy wax lavender cedarwood candles", top_k=10, max_distance=999,
+        where={"brand": {"$in": ["mias-candles", "general"]}},
+    )
+    assert candle_chunks
+    assert all(c.source != "joes-coffee_brand_guide" for c in candle_chunks)
+
+    # Scoped to a preset, neither custom brand's guide should be retrievable either.
+    sproutmix_chunks = vector_store.query(
+        EXPLORE_COLLECTION, "arabica beans soy wax candles", top_k=20, max_distance=999,
+        where={"brand": {"$in": ["sproutmix", "general"]}},
+    )
+    assert all(c.source not in ("joes-coffee_brand_guide", "mias-candles_brand_guide") for c in sproutmix_chunks)
+
+
+def test_deleting_a_custom_brand_removes_its_chunks_on_next_rebuild(temp_brands_dir, tmp_path):
+    _save_custom_brand("joes-coffee", "Joe's Coffee Co. sources single-origin arabica beans from Ethiopia.")
+
+    vector_store = VectorStore(persist_dir=str(tmp_path / "chroma"))
+    load_explore_knowledge(vector_store)
+    assert vector_store.query(EXPLORE_COLLECTION, "arabica beans", top_k=5, max_distance=999)
+
+    custom_brands.delete_custom_brand("joes-coffee")
+    load_explore_knowledge(vector_store)  # hash changed (brand gone) - triggers a rebuild
+
+    remaining = vector_store.query(EXPLORE_COLLECTION, "arabica beans", top_k=5, max_distance=999)
+    assert all(c.source != "joes-coffee_brand_guide" for c in remaining)

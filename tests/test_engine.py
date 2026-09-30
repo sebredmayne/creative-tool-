@@ -116,7 +116,7 @@ class _RecordingLLMClient(MockLLMClient):
     def __init__(self):
         self.last_user_prompt = None
 
-    def generate(self, system_prompt, user_prompt):
+    def generate(self, system_prompt, user_prompt, response_schema=None):
         self.last_user_prompt = user_prompt
         return super().generate(system_prompt, user_prompt)
 

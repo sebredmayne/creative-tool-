@@ -39,7 +39,7 @@ from dotenv import load_dotenv
 load_dotenv()
 os.environ["LLM_CACHE"] = "1"
 
-from core.brand_presets import BRAND_PRESETS
+from core.custom_brands import list_all_brands
 from core.knowledge.loader import load_compliance_rules, load_explore_knowledge
 from core.models import CreativeIdea
 from core.reasoning.engine import strip_code_fence
@@ -85,15 +85,15 @@ class PromptResult:
 
 
 def _other_brand_markers(brand_key: str) -> list[str]:
-    """Distinctive name fragments for every brand *other* than `brand_key` - if any of these
-    show up in an idea, that's a brand-leakage failure."""
+    """Distinctive name fragments for every brand *other* than `brand_key` (presets and any
+    saved custom brands) - if any of these show up in an idea, that's a brand-leakage failure."""
     markers = []
-    for key, preset in BRAND_PRESETS.items():
+    for key, profile in list_all_brands().items():
         if key == brand_key:
             continue
-        markers.append(preset["brand_name"])
-        markers.append(preset["brand_name"].split(" / ")[0])
-        markers.append(preset["context"]["product"])
+        markers.append(profile.brand_name)
+        markers.append(profile.brand_name.split(" / ")[0])
+        markers.append(profile.context.get("product", ""))
     return sorted({m for m in markers if m})
 
 
@@ -213,7 +213,7 @@ def _run_one_prompt(
     # conversation), so results don't depend on prompt order within a brand's list.
     session = CopilotSession(vector_store, llm_client)
     session.load_brand(brand_key)
-    result = session.ask(prompt_text, brand_context=BRAND_PRESETS[brand_key]["context"])
+    result = session.ask(prompt_text, brand_context=list_all_brands()[brand_key].context)
 
     if result.error:
         if result.error_is_provider_side:

@@ -104,7 +104,7 @@ class _FakeClient:
         self._outcomes = list(outcomes)
         self.calls = 0
 
-    def generate(self, system_prompt, user_prompt):
+    def generate(self, system_prompt, user_prompt, response_schema=None):
         self.calls += 1
         outcome = self._outcomes.pop(0)
         if isinstance(outcome, Exception):
@@ -190,3 +190,47 @@ def test_get_llm_client_falls_back_to_mock_when_nothing_configured(monkeypatch):
     monkeypatch.delenv("OLLAMA_MODEL", raising=False)
 
     assert isinstance(get_llm_client(), MockLLMClient)
+
+
+def test_get_llm_client_omits_ollama_when_unreachable(monkeypatch):
+    from core.reasoning.llm_client import OllamaClient
+
+    monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.setenv("OLLAMA_MODEL", "llama3")
+    monkeypatch.setattr(OllamaClient, "is_reachable", staticmethod(lambda: False))
+
+    client = get_llm_client()
+
+    assert not any(label.startswith("ollama:") for label, _ in client._chain)
+
+
+def test_get_llm_client_includes_ollama_when_reachable(monkeypatch):
+    from core.reasoning.llm_client import OllamaClient
+
+    monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.setenv("OLLAMA_MODEL", "llama3")
+    monkeypatch.setattr(OllamaClient, "is_reachable", staticmethod(lambda: True))
+
+    client = get_llm_client()
+
+    assert any(label.startswith("ollama:") for label, _ in client._chain)
+
+
+def test_ollama_is_reachable_does_not_raise_and_returns_quickly():
+    """No mocking - a real network check. Whether it's True or False depends on whether this
+    machine happens to have Ollama running, but it must complete fast (it's checked at
+    chain-construction time) and never raise, which is the actual property worth guarding -
+    the whole point is that an absent server (the common case, and always true on a hosted
+    deployment) must be handled, not crash chain construction."""
+    import time
+
+    from core.reasoning.llm_client import OllamaClient
+
+    start = time.monotonic()
+    result = OllamaClient.is_reachable()
+    elapsed = time.monotonic() - start
+
+    assert isinstance(result, bool)
+    assert elapsed < 5  # generous margin over the 1s timeout inside is_reachable()

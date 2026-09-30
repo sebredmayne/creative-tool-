@@ -1,10 +1,16 @@
-streamlit
-chromadb
-pandas
-openpyxl
-pypdf
-google-genai
-httpx
-python-dotenv
-pyyaml
-pytest
+streamlit==1.50.0
+chromadb==1.5.9
+pandas==2.3.3
+openpyxl==3.1.5
+pypdf==6.19.0
+google-genai==1.47.0
+httpx==0.28.1
+python-dotenv==1.2.1
+pyyaml==6.0.3
+pytest==8.4.2
+
+# Streamlit Community Cloud's system sqlite3 is often older than what Chroma requires - see
+# the swap at the top of app.py. Linux-only: this package ships no macOS/Windows wheel, and
+# has no source distribution to fall back to, so it must stay marker-scoped or `pip install`
+# fails outright on any other platform (including local dev on a Mac).
+pysqlite3-binary==0.5.4.post2; sys_platform == "linux"

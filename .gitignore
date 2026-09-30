@@ -6,7 +6,7 @@ venv/
 data/*
 !data/.gitkeep
 logs/
-.streamlit/
+.streamlit/secrets.toml
 .pytest_cache/
 *.egg-info/
 evals/results/

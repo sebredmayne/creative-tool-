@@ -6,14 +6,18 @@ app.py should do nothing more than construct one CopilotSession per browser sess
 methods from widget callbacks, and render whatever it returns.
 """
 import logging
+import os
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from core.brand_presets import BRAND_PRESETS
+from core import custom_brands
 from core.ingestion import get_parser
-from core.models import CreativeIdea, QueryContext
+from core.knowledge.loader import load_compliance_rules
+from core.models import CreativeIdea, EditBrief, QueryContext
+from core.reasoning.edit_brief import EditBriefError
+from core.reasoning.edit_brief import generate_edit_brief as _generate_edit_brief
 from core.reasoning.engine import generate_ideas
 from core.reasoning.llm_client import ChainExhaustedError, LLMClient, QuotaExceededError
 from core.retrieval.structured_store import StructuredStore
@@ -26,6 +30,11 @@ SAMPLE_DATA_DIR = Path(__file__).parent.parent / "sample_data"
 # Sentinel selected_brand value for a session with no specific brand ("Other brand" in the
 # UI) - distinct from None, which means "nothing picked yet at all".
 OTHER_BRAND_KEY = "none"
+
+# Per-session cap on real generation attempts (ask() + generate_edit_brief() combined) - quota
+# protection for a public demo running on one shared free-tier key. Overridable via env/secrets
+# for a private deployment that doesn't need it as tight (or at all - set it very high).
+MAX_GENERATIONS_PER_SESSION = int(os.getenv("MAX_GENERATIONS_PER_SESSION", "20"))
 
 
 class UnsupportedFileTypeError(Exception):
@@ -76,6 +85,8 @@ def classify_generation_error(exc: Exception) -> tuple[bool, str]:
         return True, "The request to the model timed out. Please try again."
     if isinstance(exc, json.JSONDecodeError):
         return False, "The model's response couldn't be parsed. Please try again or rephrase the question."
+    if isinstance(exc, EditBriefError):
+        return False, f"The model's edit brief wasn't valid ({exc}). Try again - a re-generation often resolves it."
     return False, (
         f"Something went wrong in this app, not the model provider's API ({type(exc).__name__}). "
         "This has been logged - check logs/app.log for details."
@@ -86,6 +97,22 @@ def describe_generation_error(exc: Exception) -> str:
     """Just the message half of classify_generation_error - kept as its own function since
     that's what most callers (the UI) actually want."""
     return classify_generation_error(exc)[1]
+
+
+def _generation_limit_message() -> str:
+    return (
+        f"This demo caps each session at {MAX_GENERATIONS_PER_SESSION} generations, to keep "
+        "one shared free-tier key usable for everyone sharing this link - refresh the page to "
+        "start a new session, or run this locally with your own key for unlimited use."
+    )
+
+
+@dataclass
+class EditBriefResult:
+    """What CopilotSession.generate_edit_brief() hands back."""
+
+    brief: Optional[EditBrief] = None
+    error: Optional[str] = None
 
 
 class CopilotSession:
@@ -107,18 +134,26 @@ class CopilotSession:
         self.brand_context: dict = {}
         self.saved_ideas: list[CreativeIdea] = []
         self.past_chats: list[dict] = []
+        # Counts every real generation attempt (ask() + generate_edit_brief()), regardless of
+        # success/failure - a public demo link uses one shared free-tier key, so this caps how
+        # much of it one browser session can spend, not just how much quota is left overall.
+        self.generation_count: int = 0
 
     # --- brand selection ---------------------------------------------------------------
 
     def load_brand(self, key: str) -> None:
+        profile = custom_brands.get_brand(key)
+        if profile is None:
+            raise ValueError(f"Unknown brand: {key!r}")
+
         self._clear_connect_data()
-        preset = BRAND_PRESETS[key]
-        for filename in preset["sample_files"]:
+        data_dir = custom_brands.brand_files_dir(key) if profile.is_custom else SAMPLE_DATA_DIR
+        for filename in profile.sample_files:
             sample_name = f"[sample] {filename}"
-            with open(SAMPLE_DATA_DIR / filename, "rb") as f:
+            with open(data_dir / filename, "rb") as f:
                 self.ingest(f, sample_name)
         self.selected_brand = key
-        self.brand_context = preset["context"]
+        self.brand_context = profile.context
 
     def set_other_brand(self) -> None:
         self._clear_connect_data()
@@ -180,6 +215,13 @@ class CopilotSession:
 
         self.messages.append({"role": "user", "content": query})
 
+        if self.generation_count >= MAX_GENERATIONS_PER_SESSION:
+            result = AskResult(error=_generation_limit_message())
+            self.messages.append(
+                {"role": "assistant", "ideas": [], "generic_ideas": [], "error": result.error}
+            )
+            return result
+
         has_data = bool(self.loaded_files)
         mode = "connect" if has_data else "explore"
         structured_store = self.structured_store if has_data else StructuredStore()
@@ -190,6 +232,7 @@ class CopilotSession:
         error_message = None
         error_is_provider_side = False
         ideas: list[CreativeIdea] = []
+        self.generation_count += 1
         try:
             ideas = generate_ideas(
                 context=context,
@@ -207,6 +250,7 @@ class CopilotSession:
 
         generic_ideas: list[CreativeIdea] = []
         if compare_generic and has_data and not error_message:
+            self.generation_count += 1
             try:
                 generic_ideas = generate_ideas(
                     context=QueryContext(mode="explore", query=query),
@@ -254,3 +298,29 @@ class CopilotSession:
         past = self.past_chats[index]
         self.messages = past["messages"]
         self.selected_brand = past["brand"]
+
+    # --- edit briefs ----------------------------------------------------------------------
+
+    def generate_edit_brief(self, idea: CreativeIdea) -> EditBriefResult:
+        """Turns one already-generated idea into a production-ready scene-by-scene brief -
+        one LLM call, using the idea's own concept/rationale/script and this session's brand
+        compliance rules. Never regenerates the idea itself."""
+        if self.generation_count >= MAX_GENERATIONS_PER_SESSION:
+            return EditBriefResult(error=_generation_limit_message())
+
+        # Normalizes both "no brand selected yet" (None) and "Other brand" (OTHER_BRAND_KEY) to
+        # "general" - unlike ask()'s use of the same pattern, custom_brands.get_brand() doesn't
+        # accept None, so this one has to be explicit about both cases rather than just the one.
+        explore_brand = self.selected_brand if self.selected_brand not in (None, OTHER_BRAND_KEY) else "general"
+        compliance_rules = load_compliance_rules(explore_brand)
+        brand_profile = custom_brands.get_brand(explore_brand) if explore_brand != "general" else None
+        brand_name = brand_profile.brand_name.split(" / ")[0] if brand_profile else "General D2C brand"
+
+        self.generation_count += 1
+        try:
+            brief = _generate_edit_brief(idea, brand_name, compliance_rules, self._llm_client)
+            return EditBriefResult(brief=brief)
+        except Exception as e:
+            logger.exception("generate_edit_brief failed for idea: %r", idea.concept)
+            _, message = classify_generation_error(e)
+            return EditBriefResult(error=message)

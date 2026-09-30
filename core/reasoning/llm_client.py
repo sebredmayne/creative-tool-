@@ -62,8 +62,16 @@ CREATIVE_IDEA_SCHEMA = {
 
 class LLMClient(ABC):
     @abstractmethod
-    def generate(self, system_prompt: str, user_prompt: str) -> str:
-        """Return raw text output for the given prompts."""
+    def generate(self, system_prompt: str, user_prompt: str, response_schema: Optional[dict] = None) -> str:
+        """Return raw text output for the given prompts.
+
+        `response_schema` (an OpenAPI-3.0-subset dict, e.g. CREATIVE_IDEA_SCHEMA below)
+        constrains structured output on providers that support it (currently just Gemini,
+        via response_mime_type="application/json"). Providers that don't support it ignore
+        it - callers still get best-effort JSON via the prompt's own instructions, parsed
+        leniently, exactly as before this parameter existed. Left as None, Gemini still asks
+        for valid JSON but doesn't constrain its shape.
+        """
         raise NotImplementedError
 
 
@@ -114,7 +122,7 @@ class MockLLMClient(LLMClient):
     pipeline (parsing, display) can be built and tested without any API key.
     """
 
-    def generate(self, system_prompt: str, user_prompt: str) -> str:
+    def generate(self, system_prompt: str, user_prompt: str, response_schema: Optional[dict] = None) -> str:
         return """[
   {
     "concept": "[MOCK OUTPUT] Sample creative idea",
@@ -138,16 +146,18 @@ class GeminiClient(LLMClient):
         self._client = genai_client
         self._model = model
 
-    def generate(self, system_prompt: str, user_prompt: str) -> str:
+    def generate(self, system_prompt: str, user_prompt: str, response_schema: Optional[dict] = None) -> str:
         import httpx
         from google.genai import errors, types
 
-        config = types.GenerateContentConfig(
-            system_instruction=system_prompt,
-            response_mime_type="application/json",
-            response_schema=CREATIVE_IDEA_SCHEMA,
-            thinking_config=types.ThinkingConfig(thinking_budget=0),
-        )
+        config_kwargs = {
+            "system_instruction": system_prompt,
+            "response_mime_type": "application/json",
+            "thinking_config": types.ThinkingConfig(thinking_budget=0),
+        }
+        if response_schema is not None:
+            config_kwargs["response_schema"] = response_schema
+        config = types.GenerateContentConfig(**config_kwargs)
         try:
             response = self._client.models.generate_content(model=self._model, contents=user_prompt, config=config)
             return response.text
@@ -173,7 +183,7 @@ class GroqClient(LLMClient):
         self._api_key = api_key
         self._model = model
 
-    def generate(self, system_prompt: str, user_prompt: str) -> str:
+    def generate(self, system_prompt: str, user_prompt: str, response_schema: Optional[dict] = None) -> str:
         import httpx
 
         try:
@@ -206,14 +216,28 @@ class GroqClient(LLMClient):
 
 class OllamaClient(LLMClient):
     """Talks to a locally running Ollama server - zero API key, zero network dependency, the
-    final fallback for when neither Gemini's nor Groq's free tiers are reachable at all."""
+    final fallback for when neither Gemini's nor Groq's free tiers are reachable at all. Only
+    ever useful on a machine that actually has Ollama running (never true on a hosted
+    deployment like Streamlit Community Cloud) - see is_reachable(), checked once at chain-
+    construction time in get_llm_client() rather than on every request."""
 
-    _ENDPOINT = "http://localhost:11434/api/chat"
+    _BASE_URL = "http://localhost:11434"
+    _ENDPOINT = f"{_BASE_URL}/api/chat"
 
     def __init__(self, model: str):
         self._model = model
 
-    def generate(self, system_prompt: str, user_prompt: str) -> str:
+    @staticmethod
+    def is_reachable() -> bool:
+        import httpx
+
+        try:
+            httpx.get(OllamaClient._BASE_URL, timeout=1.0)
+            return True
+        except httpx.HTTPError:
+            return False
+
+    def generate(self, system_prompt: str, user_prompt: str, response_schema: Optional[dict] = None) -> str:
         import httpx
 
         try:
@@ -278,7 +302,7 @@ class ModelChainClient(LLMClient):
         self._chain = chain
         self._cache = cache
 
-    def generate(self, system_prompt: str, user_prompt: str) -> str:
+    def generate(self, system_prompt: str, user_prompt: str, response_schema: Optional[dict] = None) -> str:
         if self._cache is not None:
             cached = self._cache.get(system_prompt, user_prompt)
             if cached is not None:
@@ -287,7 +311,7 @@ class ModelChainClient(LLMClient):
         attempts: list[tuple[str, Exception]] = []
         for label, client in self._chain:
             try:
-                result = client.generate(system_prompt, user_prompt)
+                result = client.generate(system_prompt, user_prompt, response_schema=response_schema)
             except RecoverableProviderError as e:
                 attempts.append((label, e))
                 continue
@@ -321,7 +345,7 @@ def get_llm_client() -> LLMClient:
         chain.append((f"groq:{groq_model}", GroqClient(groq_key, groq_model)))
 
     ollama_model = os.getenv("OLLAMA_MODEL")
-    if ollama_model:
+    if ollama_model and OllamaClient.is_reachable():
         chain.append((f"ollama:{ollama_model}", OllamaClient(ollama_model)))
 
     if not chain:

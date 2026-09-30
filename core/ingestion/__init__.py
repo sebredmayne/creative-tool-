@@ -6,6 +6,7 @@ below (and implement the class per `core/ingestion/base.py`).
 """
 from core.ingestion.csv_parser import CSVParser
 from core.ingestion.pdf_parser import PDFParser
+from core.ingestion.text_parser import TextParser
 from core.ingestion.xlsx_parser import XLSXParser
 
 _PARSERS_BY_EXTENSION = {
@@ -13,6 +14,8 @@ _PARSERS_BY_EXTENSION = {
     "xlsx": XLSXParser,
     "xls": XLSXParser,
     "pdf": PDFParser,
+    "md": TextParser,
+    "txt": TextParser,
 }
 
 

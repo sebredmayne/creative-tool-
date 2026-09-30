@@ -11,7 +11,7 @@ from typing import Optional
 
 from core.knowledge.loader import load_compliance_rules
 from core.models import CreativeIdea, QueryContext
-from core.reasoning.llm_client import LLMClient
+from core.reasoning.llm_client import CREATIVE_IDEA_SCHEMA, LLMClient
 from core.reasoning.prompts import build_system_prompt, build_user_prompt
 from core.reasoning.router import decide_route
 from core.retrieval.structured_store import StructuredStore
@@ -120,7 +120,7 @@ def generate_ideas(
     system_prompt = build_system_prompt(context.mode, compliance_rules)
     user_prompt = build_user_prompt(context, semantic_chunks, structured_summary, previous_ideas=previous_ideas)
 
-    raw_output = llm_client.generate(system_prompt, user_prompt)
+    raw_output = llm_client.generate(system_prompt, user_prompt, response_schema=CREATIVE_IDEA_SCHEMA)
     return _parse_ideas(raw_output)
 
 
