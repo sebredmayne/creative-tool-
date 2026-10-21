@@ -1,6 +1,6 @@
 # Project Plan
 
-Living roadmap and decision log for the D2C Growth Copilot. See `README.md` for architecture and local setup.
+Living roadmap and decision log for OnBrief, a D2C growth copilot. See `README.md` for architecture and local setup.
 
 ## Vision
 

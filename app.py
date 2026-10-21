@@ -1,4 +1,4 @@
-"""V0 Streamlit UI for the D2C Growth Copilot - brand picker + chat interface.
+"""OnBrief - a D2C growth copilot. Streamlit UI: brand picker + chat interface.
 
 This file only handles widgets and rendering - one CopilotSession (core/session.py) owns all
 state and business logic (brand selection, ingestion, chat history, generation), and ui/
@@ -23,7 +23,7 @@ from pathlib import Path
 
 import streamlit as st
 
-st.set_page_config(page_title="D2C Growth Copilot (V0)", layout="wide")
+st.set_page_config(page_title="OnBrief", layout="wide")
 
 from dotenv import load_dotenv
 
@@ -44,7 +44,17 @@ def _load_secrets_into_env() -> None:
         secret_keys = list(st.secrets.keys())
     except FileNotFoundError:
         return  # no secrets.toml at all - nothing to load, e.g. plain local dev
-    for key in ("GEMINI_API_KEY", "GEMINI_MODELS", "GROQ_API_KEY", "GROQ_MODEL", "DEMO_PASSWORD"):
+    for key in (
+        "GEMINI_API_KEY",
+        "GEMINI_MODELS",
+        "GROQ_API_KEY",
+        "GROQ_MODEL",
+        "DEMO_PASSWORD",
+        "META_AD_LIBRARY_ACCESS_TOKEN",
+        "AD_LIBRARY_COUNTRY",
+        "APIFY_API_TOKEN",
+        "GOOGLE_ADS_RESULTS_LIMIT",
+    ):
         if key in secret_keys:
             os.environ.setdefault(key, str(st.secrets[key]))
 
@@ -56,7 +66,9 @@ from core.knowledge.loader import load_explore_knowledge
 from core.reasoning.llm_client import get_llm_client
 from core.retrieval.vector_store import VectorStore
 from core.session import OTHER_BRAND_KEY, CopilotSession, UnsupportedFileTypeError
+from ui.ad_inspiration import render_ad_inspiration_panel
 from ui.brand_form import render_creation_flow
+from ui.competitor_research import render_competitor_research_panel
 from ui.components import render_assistant_message
 from ui.theme import THEME_CSS
 
@@ -91,7 +103,7 @@ def _check_demo_password() -> bool:
     if not required_password or st.session_state.get("demo_password_ok"):
         return True
 
-    st.title("D2C Growth Copilot")
+    st.title("OnBrief")
     st.caption("This demo is password-protected - ask whoever shared this link for the password.")
     entered = st.text_input("Password", type="password", key="demo_password_input")
     if st.button("Enter"):
@@ -136,7 +148,8 @@ if "new_brand_slug" in st.session_state:
     session.load_brand(st.session_state.pop("new_brand_slug"))
     st.rerun()
 
-st.title("D2C Growth Copilot")
+st.title("OnBrief")
+st.caption("A D2C growth copilot - grounded, compliance-aware creative, on brief every time.")
 
 if st.session_state.get("brand_creation_step"):
     render_creation_flow(vector_store, llm_client)
@@ -291,6 +304,8 @@ else:
             objective = st.text_input("Business objective", value=preset_context.get("objective", ""))
             st.caption("This copilot avoids medical/efficacy claims and flags anything that needs regulatory review.")
 
+        render_ad_inspiration_panel(default_query=session.brand_context.get("category", ""))
+
         show_comparison = st.checkbox("Also show generic comparison (extra API call)")
 
         if session.saved_ideas:
@@ -302,6 +317,8 @@ else:
                 if st.button("Clear saved ideas", use_container_width=True):
                     session.clear_saved_ideas()
                     st.rerun()
+
+    render_competitor_research_panel(default_category=session.brand_context.get("category", ""), llm_client=llm_client)
 
     _GENERIC_EXAMPLE_PROMPTS = [
         {"category": "Reel scripts", "prompt": "Give me 5 Instagram Reel concepts for a new D2C brand"},
