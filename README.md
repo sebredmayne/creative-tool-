@@ -1,4 +1,4 @@
-# D2C Growth Copilot — V0
+# OnBrief — D2C Growth Copilot (V0)
 
 A creative-strategy tool with two ways to give the AI context:
 
@@ -198,6 +198,37 @@ For any idea whose `recommended_format` reads as a video (Reel/UGC/video/TikTok/
 `beat_type` is always exactly one of `"hook"`, `"body"`, `"cta"`. Scenes are contractually contiguous and exhaustive: the first starts at `0:00`, each next one starts exactly where the previous ended, and the last ends exactly at `duration_seconds` - `core/reasoning/edit_brief.py::validate_edit_brief` enforces this (raising `EditBriefError`, not silently accepting a malformed brief) on every call, not just as a display nicety, since a downstream video tool consuming this JSON needs that guarantee to hold every time.
 
 The Markdown download (`edit_brief_to_markdown`) is the same content laid out as a human-readable scene table plus the alternative hooks, compliance note, and music/mood note as prose - for a human editor, not a tool.
+
+## Ad inspiration
+
+An optional sidebar panel (`ui/ad_inspiration.py`) showing what ads are currently running in a brand's niche, as inspiration for a brief - a marketer reads these and borrows ideas by hand, nothing here is fed automatically into generation. Deliberately **not an LLM feature**: `core/ad_library.py` is a plain HTTP call to Meta's own public, official [Ad Library API](https://www.facebook.com/ads/library/api) - no scraping, no ToS risk, no AI API involved anywhere in the module.
+
+Real performance metrics (CTR, spend, conversions) aren't publicly available for ordinary commercial ads - Meta only exposes those for political/social-issue ads. The one honest, industry-standard proxy used here is **how many days an ad has been running continuously**: advertisers cut losing ads fast, so a long-running one is presumably working. The panel always labels this as a proxy, never as a real performance metric.
+
+To enable it:
+
+1. Create a Meta Developer App and request Ad Library API access - check Meta's current docs (the exact auth flow and field availability have changed over time, so this project's implementation reflects best current knowledge, not a guarantee).
+2. Set `META_AD_LIBRARY_ACCESS_TOKEN` (and optionally `AD_LIBRARY_COUNTRY`, default `IN`) in `.env` locally or in `.streamlit/secrets.toml` / the Streamlit Cloud secrets dashboard when deployed.
+
+Without a token set, the panel shows a plain "not set up" message instead of an error. Search results are cached for an hour per query (`st.cache_data`) to avoid hammering the API on repeated identical searches, and every result links back to the ad's own page on Meta's Ad Library - this app never re-hosts anyone else's ad creative.
+
+**Fallback if you can't get a Meta token:** the official token requires a Meta Developer App plus App Review, which is slow and gated. If you'd rather not go through that, `core/meta_ads.py` automatically falls back to scraping Meta's Ad Library via Apify's `curious_coder/facebook-ads-library-scraper` actor instead, using the same `APIFY_API_TOKEN` as the Google side below (optionally tune `META_ADS_APIFY_RESULTS_LIMIT`, default 15). The official API is always preferred when configured - it's free and has no scraping/ToS risk, both of which the Apify fallback gives up. Use the fallback only if getting the official token isn't practical for you.
+
+## Competitor ad research
+
+A main-content-area panel (`ui/competitor_research.py`) for a different starting point than the Ad inspiration panel above: instead of already knowing which brand to search, a marketer names a **category or product** (e.g. "milk mix"), and the tool identifies the top competing brands on its own, pulls each one's ads from both Meta and Google, and shows a synthesized "what's trending" summary. Like the Ad inspiration panel, this is read-only research for a marketer to read first - it is never fed automatically into the chat-based idea generator (`core/reasoning/engine.py`).
+
+Three things compose this feature, each independently optional:
+
+1. **Finding the top brands** (`core/brand_discovery.py`) - one LLM call via whichever provider `get_llm_client()` has configured. Not grounded in live search, so very recently-emerged category leaders may occasionally be missed; acceptable trade-off for v0, since this only needs well-known category incumbents, not perfect recency.
+2. **Meta ads per brand** - goes through `core/meta_ads.py`, the same official-API-preferred-with-Apify-fallback logic described in "Ad inspiration" above, so it works with either `META_AD_LIBRARY_ACCESS_TOKEN` or `APIFY_API_TOKEN` set.
+3. **Google ads per brand** (`core/google_ads.py` + `core/reasoning/grounded_search.py`) - Google publishes no public API for ordinary commercial ads, so this scrapes Google's own [Ads Transparency Center](https://adstransparency.google.com) via Apify's hosted `silva95gustavo/google-ads-scraper` actor, a **paid, third-party, pay-per-event scraper** (~$0.90/1,000 ads - roughly a few cents per category search at the default per-brand limit), not an official API, and inherently more fragile than Meta's integration since the actor's behavior and the underlying site are both outside this project's control. That actor needs a specific advertiser-detail URL as input, which Google provides no lookup API for either - this project uses Gemini's Google Search grounding to find it, so the Google side specifically needs `GEMINI_API_KEY` set (grounding is Gemini-only, not available via Groq/Ollama) in addition to `APIFY_API_TOKEN`.
+
+To enable the Google side: set `APIFY_API_TOKEN` (from your [Apify account's API tokens page](https://console.apify.com/settings/integrations)) and `GEMINI_API_KEY`, plus optionally `GOOGLE_ADS_RESULTS_LIMIT` (default 15, a direct per-brand cost/latency knob), in `.env` locally or secrets when deployed.
+
+Every failure degrades gracefully and locally, never aborting the whole search: if `APIFY_API_TOKEN` or `GEMINI_API_KEY` is missing, or a specific brand's advertiser page simply can't be found, that brand (or the whole Google side) is skipped with a plain reason shown in the panel - Meta results and every other brand are unaffected. With neither Google credential set, the panel still works end-to-end on Meta data alone.
+
+Because this synthesizes competitor ad copy - which routinely includes health/nutrition/efficacy claims - the synthesis prompt is instructed to only ever attribute such claims to the competitor who made them, never to restate them as fact or as guidance. The panel itself carries a standing disclaimer: nothing surfaced here is medical or regulatory guidance, and any claim or angle a marketer carries from this panel into real customer-facing copy still needs the same human and medical/regulatory review as everything else in this app.
 
 ## Running locally
 

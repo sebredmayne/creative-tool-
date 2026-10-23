@@ -1,4 +1,4 @@
-"""V0 Streamlit UI for the D2C Growth Copilot - brand picker + chat interface.
+"""OnBrief - a D2C growth copilot. Streamlit UI: brand picker + chat interface.
 
 This file only handles widgets and rendering - one CopilotSession (core/session.py) owns all
 state and business logic (brand selection, ingestion, chat history, generation), and ui/
@@ -23,7 +23,7 @@ from pathlib import Path
 
 import streamlit as st
 
-st.set_page_config(page_title="D2C Growth Copilot (V0)", layout="wide")
+st.set_page_config(page_title="OnBrief", layout="wide")
 
 from dotenv import load_dotenv
 
@@ -44,7 +44,18 @@ def _load_secrets_into_env() -> None:
         secret_keys = list(st.secrets.keys())
     except FileNotFoundError:
         return  # no secrets.toml at all - nothing to load, e.g. plain local dev
-    for key in ("GEMINI_API_KEY", "GEMINI_MODELS", "GROQ_API_KEY", "GROQ_MODEL", "DEMO_PASSWORD"):
+    for key in (
+        "GEMINI_API_KEY",
+        "GEMINI_MODELS",
+        "GROQ_API_KEY",
+        "GROQ_MODEL",
+        "DEMO_PASSWORD",
+        "META_AD_LIBRARY_ACCESS_TOKEN",
+        "AD_LIBRARY_COUNTRY",
+        "APIFY_API_TOKEN",
+        "GOOGLE_ADS_RESULTS_LIMIT",
+        "META_ADS_APIFY_RESULTS_LIMIT",
+    ):
         if key in secret_keys:
             os.environ.setdefault(key, str(st.secrets[key]))
 
@@ -56,7 +67,9 @@ from core.knowledge.loader import load_explore_knowledge
 from core.reasoning.llm_client import get_llm_client
 from core.retrieval.vector_store import VectorStore
 from core.session import OTHER_BRAND_KEY, CopilotSession, UnsupportedFileTypeError
+from ui.ad_inspiration import render_ad_inspiration_panel
 from ui.brand_form import render_creation_flow
+from ui.competitor_research import render_competitor_research_panel
 from ui.components import render_assistant_message
 from ui.theme import THEME_CSS
 
@@ -91,7 +104,7 @@ def _check_demo_password() -> bool:
     if not required_password or st.session_state.get("demo_password_ok"):
         return True
 
-    st.title("D2C Growth Copilot")
+    st.title("OnBrief")
     st.caption("This demo is password-protected - ask whoever shared this link for the password.")
     entered = st.text_input("Password", type="password", key="demo_password_input")
     if st.button("Enter"):
@@ -136,27 +149,58 @@ if "new_brand_slug" in st.session_state:
     session.load_brand(st.session_state.pop("new_brand_slug"))
     st.rerun()
 
-st.title("D2C Growth Copilot")
+st.markdown(
+    '<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 2px">'
+    '<span style="width: 32px; height: 32px; border-radius: 7px; background: #16161A; '
+    'display: flex; align-items: center; justify-content: center; flex: none">'
+    '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 16 16" fill="none" '
+    'stroke="#FFE45C" stroke-width="2" stroke-linecap="round">'
+    '<path d="M3 4h10M3 8h10M3 12h6"></path></svg></span>'
+    '<span style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.02em; line-height: 1">OnBrief</span>'
+    "</div>",
+    unsafe_allow_html=True,
+)
+st.markdown(
+    '<p style="color: #4A4A52; font-size: 0.95rem; margin: 4px 0 0">'
+    'A D2C growth copilot - <span class="highlight">grounded, compliance-aware</span> creative, '
+    "on brief every time.</p>",
+    unsafe_allow_html=True,
+)
 
 if st.session_state.get("brand_creation_step"):
     render_creation_flow(vector_store, llm_client)
 elif session.selected_brand is None:
-    st.markdown("#### How to use this")
-    st.markdown(
-        "1. Pick a brand card below (or skip) - it loads sample data and brand context "
-        "for you automatically, no typing needed.\n"
-        "2. Type what you want in the chat box at the bottom - a script, ad concepts, "
-        "campaign ideas, anything.\n"
-        "3. Get back structured ideas, each with its own reasoning and the source it "
-        "actually drew from."
-    )
+    st.markdown("#### How it works")
+    _HOW_IT_WORKS_STEPS = [
+        ("01", "Pick a brand", "Pick a brand card below (or skip) - it loads sample data and brand context for you automatically, no typing needed."),
+        ("02", "Ask for anything", "Type what you want in the chat box at the bottom - a script, ad concepts, campaign ideas, anything."),
+        ("03", "Check the receipts", "Get back structured ideas, each with its own reasoning and the source it actually drew from."),
+        ("04", "See competitors too", "Once you're in a chat, expand \"Competitor ad research\" to see what's trending for other brands in your category first."),
+    ]
+    step_cols = st.columns(4)
+    for col, (num, title, body) in zip(step_cols, _HOW_IT_WORKS_STEPS):
+        with col:
+            st.markdown(
+                f'<div style="border-top: 2px solid #16161A; padding-top: 14px">'
+                f'<span class="mono-label">{num}</span>'
+                f'<p style="margin: 8px 0 0; font-weight: 700; font-size: 1.05rem">{title}</p>'
+                f'<p style="margin: 8px 0 0; color: #3A3A42; font-size: 0.92rem; line-height: 1.5">{body}</p>'
+                "</div>",
+                unsafe_allow_html=True,
+            )
 
     with st.expander("🔧 What happens behind the scenes"):
         st.markdown(
             "When you send a message, the app searches a knowledge base - curated brand "
             "info plus whatever data you loaded - for the most relevant pieces, then sends "
             "those along with your question to Google's Gemini AI to write a real answer. "
-            "Nothing gets called until you actually hit send."
+            "Nothing gets called until you actually hit send.\n\n"
+            "\"Competitor ad research\" (inside a brand's chat) is separate: it calls Meta's "
+            "official Ad Library API for Facebook/Instagram ads, and - since Google offers no "
+            "equivalent API - uses a third-party web scraper (Apify) to pull Google/YouTube ads "
+            "from Google's own public Ads Transparency Center, and as a fallback for Meta ads "
+            "too if the official Meta token isn't set up. Nothing there runs until you type a "
+            "category and click \"Research this category.\""
         )
 
     st.write("")
@@ -170,10 +214,13 @@ elif session.selected_brand is None:
         with st.container(border=True):
             st.caption(profile.label.upper())
             badge_text = "Custom brand" if profile.is_custom else "Brand data"
-            st.markdown(f'<span class="idea-badge badge-brand-data">{badge_text}</span>', unsafe_allow_html=True)
+            badge_class = "badge-custom" if profile.is_custom else "badge-brand-data"
+            st.markdown(f'<span class="idea-badge {badge_class}">{badge_text}</span>', unsafe_allow_html=True)
             st.markdown(f'<p class="card-title">{profile.brand_name.split(" / ")[0]}</p>', unsafe_allow_html=True)
             st.write(profile.description)
-            if st.button("Start chat →", key=f"pick_{key}", type="tertiary"):
+            data_line = " · ".join(profile.sample_files) if profile.sample_files else "brand guide"
+            st.markdown(f'<span class="mono-label">{data_line}</span>', unsafe_allow_html=True)
+            if st.button("Start chat →", key=f"pick_{key}", type="primary", use_container_width=True):
                 session.load_brand(key)
                 st.rerun()
             if profile.is_custom and st.button("Delete", key=f"delete_{key}", use_container_width=True):
@@ -224,8 +271,9 @@ else:
                 profile = get_brand(session.selected_brand)
                 brand_label = profile.brand_name.split(" / ")[0]
                 badge_text = "Custom brand" if profile.is_custom else "Brand data"
+                badge_class = "badge-custom" if profile.is_custom else "badge-brand-data"
                 st.markdown(
-                    f'**{brand_label}** <span class="idea-badge badge-brand-data">{badge_text}</span>',
+                    f'**{brand_label}** <span class="idea-badge {badge_class}">{badge_text}</span>',
                     unsafe_allow_html=True,
                 )
             else:
@@ -291,6 +339,8 @@ else:
             objective = st.text_input("Business objective", value=preset_context.get("objective", ""))
             st.caption("This copilot avoids medical/efficacy claims and flags anything that needs regulatory review.")
 
+        render_ad_inspiration_panel(default_query=session.brand_context.get("category", ""))
+
         show_comparison = st.checkbox("Also show generic comparison (extra API call)")
 
         if session.saved_ideas:
@@ -302,6 +352,12 @@ else:
                 if st.button("Clear saved ideas", use_container_width=True):
                     session.clear_saved_ideas()
                     st.rerun()
+
+    render_competitor_research_panel(
+        default_category=session.brand_context.get("category", ""),
+        llm_client=llm_client,
+        expanded=not session.messages,
+    )
 
     _GENERIC_EXAMPLE_PROMPTS = [
         {"category": "Reel scripts", "prompt": "Give me 5 Instagram Reel concepts for a new D2C brand"},
@@ -319,7 +375,10 @@ else:
 
     use_example_prompt = None
     if not session.messages:
-        st.markdown(f"#### What do you want to make for {brand_display_name}?")
+        st.markdown(
+            f'#### What do you want to make for <span class="highlight">{brand_display_name}</span>?',
+            unsafe_allow_html=True,
+        )
         st.caption("Not sure what to ask? Start with one of these.")
         ex_cols = st.columns(3)
         for col, ex in zip(ex_cols, example_prompts):

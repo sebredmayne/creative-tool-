@@ -98,9 +98,12 @@ def render_idea_card(idea, key_prefix: str, session: CopilotSession):
             st.markdown(f'<div class="compliance-warning">⚠️ {html.escape(reason)}</div>', unsafe_allow_html=True)
 
         with st.expander("Why this"):
-            st.markdown(f"**Rationale:** {idea.rationale}")
-            st.markdown(f"**Recommended format:** {idea.recommended_format}")
-            st.markdown(f"**Source/context used:** {idea.source_context}")
+            st.markdown('<span class="mono-label">Rationale</span>', unsafe_allow_html=True)
+            st.markdown(idea.rationale)
+            st.markdown('<span class="mono-label">Recommended format</span>', unsafe_allow_html=True)
+            st.markdown(idea.recommended_format)
+            st.markdown('<span class="mono-label">Source/context used</span>', unsafe_allow_html=True)
+            st.markdown(f'<span class="source-chip">{html.escape(idea.source_context)}</span>', unsafe_allow_html=True)
 
         # st.code renders with its own built-in copy-to-clipboard icon on hover - no custom
         # button/JS needed (Streamlit strips inline onclick handlers from st.markdown HTML

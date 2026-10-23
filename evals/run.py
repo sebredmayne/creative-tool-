@@ -298,7 +298,7 @@ def save_results(results: list[PromptResult]) -> Path:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the D2C Growth Copilot eval suite.")
+    parser = argparse.ArgumentParser(description="Run the OnBrief eval suite.")
     parser.add_argument(
         "--judge",
         action="store_true",
