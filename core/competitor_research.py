@@ -15,9 +15,10 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Optional
 
-from core.ad_library import AdExample, search_ads
+from core.ad_library import AdExample
 from core.brand_discovery import BrandDiscoveryError, CompetitorBrand, discover_top_brands
 from core.google_ads import GoogleAdExample, is_configured as google_ads_configured, search_google_ads
+from core.meta_ads import search_meta_ads
 from core.reasoning.grounded_search import find_advertiser_url, is_available as grounding_available
 from core.reasoning.llm_client import LLMClient
 from core.reasoning.trends_synthesis import TrendsSummary, TrendsSynthesisError, synthesize_trends
@@ -82,7 +83,7 @@ def _research_one_brand(brand: CompetitorBrand) -> BrandAdFindings:
     (every brand, not just this one) over a single unexpected fault here."""
     findings = BrandAdFindings(brand_name=brand.brand_name, domain=brand.domain)
     try:
-        meta_result = search_ads(brand.brand_name)
+        meta_result = search_meta_ads(brand.brand_name)
         findings.meta_ads = meta_result.ads
         findings.meta_error = meta_result.error
 

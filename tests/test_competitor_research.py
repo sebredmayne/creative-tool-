@@ -39,7 +39,7 @@ def _patch_pipeline(**overrides):
         discover_top_brands=lambda category, llm_client, count=5: BrandDiscoveryResult(
             category_normalized=category, brands=[_brand("Acme"), _brand("Bravo")]
         ),
-        search_ads=lambda query: AdSearchResult(ads=[_meta_ad(query)]),
+        search_meta_ads=lambda query: AdSearchResult(ads=[_meta_ad(query)]),
         google_ads_configured=lambda: True,
         grounding_available=lambda: True,
         find_advertiser_url=lambda brand_name, domain=None: f"https://adstransparency.google.com/advertiser/AR{brand_name}",
@@ -86,7 +86,7 @@ def test_discovery_failure_short_circuits_with_nothing_else_called(llm_client):
     search_ads_calls = []
     patches = _patch_pipeline(
         discover_top_brands=_raise_discovery,
-        search_ads=lambda query: search_ads_calls.append(query) or AdSearchResult(),
+        search_meta_ads=lambda query: search_ads_calls.append(query) or AdSearchResult(),
     )
     try:
         result = research_category("milk mix", llm_client)
@@ -183,7 +183,7 @@ def test_all_brands_processed_even_if_one_raises_unexpectedly(llm_client):
             raise RuntimeError("boom")
         return AdSearchResult(ads=[_meta_ad(query)])
 
-    patches = _patch_pipeline(search_ads=_search_ads)
+    patches = _patch_pipeline(search_meta_ads=_search_ads)
     try:
         result = research_category("milk mix", llm_client)
     finally:

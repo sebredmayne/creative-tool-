@@ -54,6 +54,7 @@ def _load_secrets_into_env() -> None:
         "AD_LIBRARY_COUNTRY",
         "APIFY_API_TOKEN",
         "GOOGLE_ADS_RESULTS_LIMIT",
+        "META_ADS_APIFY_RESULTS_LIMIT",
     ):
         if key in secret_keys:
             os.environ.setdefault(key, str(st.secrets[key]))
@@ -148,28 +149,58 @@ if "new_brand_slug" in st.session_state:
     session.load_brand(st.session_state.pop("new_brand_slug"))
     st.rerun()
 
-st.title("OnBrief")
-st.caption("A D2C growth copilot - grounded, compliance-aware creative, on brief every time.")
+st.markdown(
+    '<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 2px">'
+    '<span style="width: 32px; height: 32px; border-radius: 7px; background: #16161A; '
+    'display: flex; align-items: center; justify-content: center; flex: none">'
+    '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 16 16" fill="none" '
+    'stroke="#FFE45C" stroke-width="2" stroke-linecap="round">'
+    '<path d="M3 4h10M3 8h10M3 12h6"></path></svg></span>'
+    '<span style="font-weight: 700; font-size: 2.2rem; letter-spacing: -0.02em; line-height: 1">OnBrief</span>'
+    "</div>",
+    unsafe_allow_html=True,
+)
+st.markdown(
+    '<p style="color: #4A4A52; font-size: 0.95rem; margin: 4px 0 0">'
+    'A D2C growth copilot - <span class="highlight">grounded, compliance-aware</span> creative, '
+    "on brief every time.</p>",
+    unsafe_allow_html=True,
+)
 
 if st.session_state.get("brand_creation_step"):
     render_creation_flow(vector_store, llm_client)
 elif session.selected_brand is None:
-    st.markdown("#### How to use this")
-    st.markdown(
-        "1. Pick a brand card below (or skip) - it loads sample data and brand context "
-        "for you automatically, no typing needed.\n"
-        "2. Type what you want in the chat box at the bottom - a script, ad concepts, "
-        "campaign ideas, anything.\n"
-        "3. Get back structured ideas, each with its own reasoning and the source it "
-        "actually drew from."
-    )
+    st.markdown("#### How it works")
+    _HOW_IT_WORKS_STEPS = [
+        ("01", "Pick a brand", "Pick a brand card below (or skip) - it loads sample data and brand context for you automatically, no typing needed."),
+        ("02", "Ask for anything", "Type what you want in the chat box at the bottom - a script, ad concepts, campaign ideas, anything."),
+        ("03", "Check the receipts", "Get back structured ideas, each with its own reasoning and the source it actually drew from."),
+        ("04", "See competitors too", "Once you're in a chat, expand \"Competitor ad research\" to see what's trending for other brands in your category first."),
+    ]
+    step_cols = st.columns(4)
+    for col, (num, title, body) in zip(step_cols, _HOW_IT_WORKS_STEPS):
+        with col:
+            st.markdown(
+                f'<div style="border-top: 2px solid #16161A; padding-top: 14px">'
+                f'<span class="mono-label">{num}</span>'
+                f'<p style="margin: 8px 0 0; font-weight: 700; font-size: 1.05rem">{title}</p>'
+                f'<p style="margin: 8px 0 0; color: #3A3A42; font-size: 0.92rem; line-height: 1.5">{body}</p>'
+                "</div>",
+                unsafe_allow_html=True,
+            )
 
     with st.expander("🔧 What happens behind the scenes"):
         st.markdown(
             "When you send a message, the app searches a knowledge base - curated brand "
             "info plus whatever data you loaded - for the most relevant pieces, then sends "
             "those along with your question to Google's Gemini AI to write a real answer. "
-            "Nothing gets called until you actually hit send."
+            "Nothing gets called until you actually hit send.\n\n"
+            "\"Competitor ad research\" (inside a brand's chat) is separate: it calls Meta's "
+            "official Ad Library API for Facebook/Instagram ads, and - since Google offers no "
+            "equivalent API - uses a third-party web scraper (Apify) to pull Google/YouTube ads "
+            "from Google's own public Ads Transparency Center, and as a fallback for Meta ads "
+            "too if the official Meta token isn't set up. Nothing there runs until you type a "
+            "category and click \"Research this category.\""
         )
 
     st.write("")
@@ -183,10 +214,13 @@ elif session.selected_brand is None:
         with st.container(border=True):
             st.caption(profile.label.upper())
             badge_text = "Custom brand" if profile.is_custom else "Brand data"
-            st.markdown(f'<span class="idea-badge badge-brand-data">{badge_text}</span>', unsafe_allow_html=True)
+            badge_class = "badge-custom" if profile.is_custom else "badge-brand-data"
+            st.markdown(f'<span class="idea-badge {badge_class}">{badge_text}</span>', unsafe_allow_html=True)
             st.markdown(f'<p class="card-title">{profile.brand_name.split(" / ")[0]}</p>', unsafe_allow_html=True)
             st.write(profile.description)
-            if st.button("Start chat →", key=f"pick_{key}", type="tertiary"):
+            data_line = " · ".join(profile.sample_files) if profile.sample_files else "brand guide"
+            st.markdown(f'<span class="mono-label">{data_line}</span>', unsafe_allow_html=True)
+            if st.button("Start chat →", key=f"pick_{key}", type="primary", use_container_width=True):
                 session.load_brand(key)
                 st.rerun()
             if profile.is_custom and st.button("Delete", key=f"delete_{key}", use_container_width=True):
@@ -237,8 +271,9 @@ else:
                 profile = get_brand(session.selected_brand)
                 brand_label = profile.brand_name.split(" / ")[0]
                 badge_text = "Custom brand" if profile.is_custom else "Brand data"
+                badge_class = "badge-custom" if profile.is_custom else "badge-brand-data"
                 st.markdown(
-                    f'**{brand_label}** <span class="idea-badge badge-brand-data">{badge_text}</span>',
+                    f'**{brand_label}** <span class="idea-badge {badge_class}">{badge_text}</span>',
                     unsafe_allow_html=True,
                 )
             else:
@@ -318,7 +353,11 @@ else:
                     session.clear_saved_ideas()
                     st.rerun()
 
-    render_competitor_research_panel(default_category=session.brand_context.get("category", ""), llm_client=llm_client)
+    render_competitor_research_panel(
+        default_category=session.brand_context.get("category", ""),
+        llm_client=llm_client,
+        expanded=not session.messages,
+    )
 
     _GENERIC_EXAMPLE_PROMPTS = [
         {"category": "Reel scripts", "prompt": "Give me 5 Instagram Reel concepts for a new D2C brand"},
@@ -336,7 +375,10 @@ else:
 
     use_example_prompt = None
     if not session.messages:
-        st.markdown(f"#### What do you want to make for {brand_display_name}?")
+        st.markdown(
+            f'#### What do you want to make for <span class="highlight">{brand_display_name}</span>?',
+            unsafe_allow_html=True,
+        )
         st.caption("Not sure what to ask? Start with one of these.")
         ex_cols = st.columns(3)
         for col, ex in zip(ex_cols, example_prompts):

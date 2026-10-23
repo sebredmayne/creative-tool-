@@ -1,15 +1,17 @@
 """Sidebar panel for "what's running in this niche right now" ad inspiration, backed by
-core/ad_library.py (Meta Ad Library API - no AI API involved). Deliberately standalone: results
-are shown for a marketer to read and borrow ideas from by hand, never fed automatically into
-generation, so there's no session/state coupling here beyond a plain cached search call."""
+core/meta_ads.py (Meta's official Ad Library API if configured, else an Apify-scraped fallback -
+see that module's docstring for why both exist). Deliberately standalone: results are shown for
+a marketer to read and borrow ideas from by hand, never fed automatically into generation, so
+there's no session/state coupling here beyond a plain cached search call."""
 import streamlit as st
 
-from core.ad_library import AdExample, is_configured, search_ads
+from core.ad_library import AdExample
+from core.meta_ads import is_configured, search_meta_ads
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def _cached_search(query: str):
-    result = search_ads(query)
+    result = search_meta_ads(query)
     return result.ads, result.error
 
 
@@ -27,8 +29,9 @@ def render_ad_inspiration_panel(default_query: str = "") -> None:
     with st.expander("📣 Ad inspiration"):
         if not is_configured():
             st.caption(
-                "Not set up - add META_AD_LIBRARY_ACCESS_TOKEN to search live ads from Meta's "
-                "Ad Library for inspiration."
+                "Not set up - add META_AD_LIBRARY_ACCESS_TOKEN (official, preferred) or "
+                "APIFY_API_TOKEN (scraped fallback) to search live ads from Meta's Ad Library "
+                "for inspiration."
             )
             return
 

@@ -10,9 +10,10 @@ into generation.
 """
 import streamlit as st
 
-from core.ad_library import AdExample, is_configured as meta_configured
+from core.ad_library import AdExample
 from core.competitor_research import BrandAdFindings, CategoryResearchResult, research_category
 from core.google_ads import GoogleAdExample, is_configured as google_configured
+from core.meta_ads import is_configured as meta_configured
 from core.reasoning.grounded_search import is_available as grounding_available
 from core.reasoning.trends_synthesis import TrendsSummary
 
@@ -25,7 +26,11 @@ def _cached_research(category: str, _llm_client) -> CategoryResearchResult:
 
 
 def _status_caption() -> str:
-    parts = ["Meta: configured" if meta_configured() else "Meta: not set up - add META_AD_LIBRARY_ACCESS_TOKEN"]
+    parts = [
+        "Meta: configured"
+        if meta_configured()
+        else "Meta: not set up - add META_AD_LIBRARY_ACCESS_TOKEN or APIFY_API_TOKEN"
+    ]
     if not google_configured():
         parts.append("Google: not set up - add APIFY_API_TOKEN")
     elif not grounding_available():
@@ -87,12 +92,14 @@ def _render_trends_summary(summary: TrendsSummary) -> None:
                 st.markdown(f"**{note.brand_name}**: {note.note}")
 
 
-def render_competitor_research_panel(default_category: str = "", llm_client=None) -> None:
+def render_competitor_research_panel(default_category: str = "", llm_client=None, expanded: bool = False) -> None:
     """Call from app.py's main content area, before the example-prompts block. `default_category`
     seeds the input from the brand context's category field, same convention as
     render_ad_inspiration_panel's default_query. `llm_client` should be the same client the rest
-    of the app uses (get_llm_client())."""
-    with st.expander("🔎 Competitor ad research", expanded=False):
+    of the app uses (get_llm_client()). `expanded` should be true before the marketer has sent
+    their first message - this panel is easy to miss collapsed, and the point of surfacing it
+    at all is that someone can find it without already knowing it's there."""
+    with st.expander("🔎 Competitor ad research", expanded=expanded):
         st.caption(
             "Tell us a category or product, and we'll find the top brands advertising in it and "
             "show what's trending - read this first, then use the chat below to generate your own "
